@@ -3,15 +3,15 @@ import { ArtistProfile, MusicRelease, MusicVideo, PhotoItem, SocialLinks, SiteSe
 export const initialArtistProfile: ArtistProfile = {
   name: 'TANBYR',
   tagline: 'Artist / Singer-Songwriter',
-  bio: `TANBYR is an independent singer-songwriter and recording artist from Dhaka, Bangladesh. Blending emotive Bengali songwriting with contemporary acoustic textures, cinematic ambient layers, and heartfelt indie-pop melodies, his music navigates love, longing, urban solitude, and cultural nostalgia.
+  bio: `TANBYR is an independent singer-songwriter and recording artist. Blending emotive Bengali songwriting with contemporary acoustic textures, cinematic ambient layers, and heartfelt #Banglapop melodies, his music navigates love, longing, and poetic storytelling.
 
-Crafting each lyric with poetic honesty and raw acoustic nuance, TANBYR brings a fresh, global sonic identity to contemporary South Asian music. His debut release "Jabonare" represents an intimate sonic chapter, weaving delicate acoustic guitar phrasing with an atmospheric, modern production canvas.`,
+Crafting each lyric with poetic honesty and raw acoustic nuance, TANBYR brings a fresh, modern sonic identity to South Asian pop. His debut release "Jabonare" represents an intimate sonic chapter, weaving delicate acoustic guitar phrasing with an atmospheric, modern production canvas.`,
   profileImageUrl: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?auto=format&fit=crop&w=1200&q=80',
   heroImageUrl: 'https://images.unsplash.com/photo-1508700115892-45ecd05ae2ad?auto=format&fit=crop&w=1920&q=85',
-  genre: 'Contemporary Bengali Indie / Singer-Songwriter',
-  country: 'Bangladesh',
-  location: 'Dhaka, Bangladesh',
-  activeSince: '2024',
+  genre: '#Banglapop',
+  country: '',
+  location: '',
+  activeSince: '2026',
 };
 
 export const initialReleases: MusicRelease[] = [
@@ -21,7 +21,7 @@ export const initialReleases: MusicRelease[] = [
     type: 'Single',
     releaseDate: '2026-09-15',
     coverImage: 'https://images.unsplash.com/photo-1614613535308-eb5fbd3d2c17?auto=format&fit=crop&w=1000&q=80',
-    description: 'An atmospheric indie ballad that captures quiet melancholia, poetic surrender, and the acoustic warmth of nocturnal Dhaka.',
+    description: 'An atmospheric indie ballad that captures quiet melancholia, poetic surrender, and heartfelt acoustic warmth.',
     spotifyUrl: 'https://open.spotify.com/artist/placeholder-tanbyr',
     youtubeUrl: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
     youtubeMusicUrl: 'https://music.youtube.com/search?q=tanbyr+jabonare',
@@ -48,14 +48,14 @@ export const initialReleases: MusicRelease[] = [
 
 [Outro]
 যাবোনা রে... তোমায় ছেড়ে... যাবোনা রে...`,
-    credits: 'Composed, Written & Performed by TANBYR · Produced & Arranged in Dhaka · Mastered by SoundLab Studio',
+    credits: 'Composed, Written & Performed by TANBYR · Mastered by SoundLab Studio',
     featured: true,
     order: 1,
     createdAt: '2026-09-01T12:00:00Z',
   },
   {
-    id: 'rel-dhaka-nights-2026',
-    title: 'Dhaka Nights (Acoustic)',
+    id: 'rel-city-nights-2026',
+    title: 'City Nights (Acoustic)',
     type: 'Single',
     releaseDate: '2026-04-20',
     coverImage: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?auto=format&fit=crop&w=1000&q=80',
@@ -64,7 +64,7 @@ export const initialReleases: MusicRelease[] = [
     youtubeUrl: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
     youtubeMusicUrl: 'https://music.youtube.com/search?q=tanbyr',
     appleMusicUrl: 'https://music.apple.com/artist/placeholder-tanbyr',
-    credits: 'Acoustic Guitar & Vocals: TANBYR · Recorded Live at Studio 71, Dhaka',
+    credits: 'Acoustic Guitar & Vocals: TANBYR · Recorded Live at Studio 71',
     featured: false,
     order: 2,
     createdAt: '2026-04-20T10:00:00Z',
@@ -77,14 +77,14 @@ export const initialMusicVideos: MusicVideo[] = [
     title: 'Jabonare — Official Music Video',
     thumbnailUrl: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?auto=format&fit=crop&w=1200&q=80',
     youtubeUrl: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
-    description: 'Cinematic visual companion for TANBYR\'s breakout single "Jabonare", captured across old Dhaka and riverfront mist.',
+    description: 'Cinematic visual companion for TANBYR\'s breakout single "Jabonare", captured across evocative riverfront mist and atmospheric lighting.',
     releaseDate: '2026-09-15',
     featured: true,
     order: 1,
   },
   {
-    id: 'vid-dhaka-acoustic-live',
-    title: 'Dhaka Nights — Live Studio Session',
+    id: 'vid-city-acoustic-live',
+    title: 'City Nights — Live Studio Session',
     thumbnailUrl: 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?auto=format&fit=crop&w=1200&q=80',
     youtubeUrl: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
     description: 'An intimate one-take acoustic performance recorded under warm incandescent studio lighting.',
@@ -132,7 +132,7 @@ export const initialPhotos: PhotoItem[] = [
   {
     id: 'photo-4',
     imageUrl: 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?auto=format&fit=crop&w=1200&q=80',
-    caption: 'Live performance in Dhaka indie music showcase',
+    caption: 'Live performance in indie music showcase',
     category: 'Live',
     date: '2026-06-18',
     featured: false,
@@ -168,8 +168,8 @@ export const initialSocialLinks: SocialLinks = {
 
 export const initialSiteSettings: SiteSettings = {
   websiteTitle: 'TANBYR — Official Artist Website',
-  metaDescription: 'Official website of TANBYR — independent artist, singer and songwriter from Bangladesh.',
+  metaDescription: 'Official website of TANBYR — independent artist, singer and songwriter.',
   ogImageUrl: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?auto=format&fit=crop&w=1200&q=80',
-  keywords: 'TANBYR, Tanbyr music, Jabonare, Bangladeshi artist, singer songwriter, indie music Bangladesh, Dhaka artist',
+  keywords: 'TANBYR, Tanbyr music, Jabonare, Banglapop, singer songwriter, independent artist',
   canonicalUrl: 'https://tanbyr.com',
 };

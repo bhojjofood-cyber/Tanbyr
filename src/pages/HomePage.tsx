@@ -77,7 +77,10 @@ export const HomePage: React.FC<HomePageProps> = ({
 
             {/* Subtle Origin / Genre indicator */}
             <p className="max-w-xl text-sm sm:text-base text-neutral-300 font-light tracking-wide leading-relaxed mb-8 text-center">
-              {artist.genre || 'Contemporary Bengali Indie & Soul'} &middot; {artist.location || 'Dhaka, Bangladesh'}
+              <span>{artist.genre || '#Banglapop'}</span>
+              {artist.location && artist.location !== 'Dhaka, Bangladesh' && artist.location !== 'Dhaka' ? (
+                <span> &middot; {artist.location}</span>
+              ) : null}
             </p>
 
             {/* CTA Buttons */}
@@ -377,7 +380,7 @@ export const HomePage: React.FC<HomePageProps> = ({
               About TANBYR
             </h2>
             <p className="text-base sm:text-xl text-neutral-300 font-light leading-relaxed max-w-3xl mb-10">
-              {artist.bio ? artist.bio.split('\n\n')[0] : 'Independent artist, singer and songwriter from Dhaka, Bangladesh.'}
+              {artist.bio ? artist.bio.split('\n\n')[0] : 'Independent artist, singer and songwriter.'}
             </p>
             <button
               onClick={() => onNavigate('/about')}

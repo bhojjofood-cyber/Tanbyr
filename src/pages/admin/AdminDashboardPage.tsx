@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   LayoutDashboard,
   User,
@@ -88,6 +88,18 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
   const [profileForm, setProfileForm] = useState<ArtistProfile>({ ...artist });
   const [socialForm, setSocialForm] = useState<SocialLinks>({ ...initialSocialLinks, ...(socials || {}) });
   const [seoForm, setSeoForm] = useState<SiteSettings>({ ...settings });
+
+  useEffect(() => {
+    setProfileForm({ ...artist });
+  }, [artist]);
+
+  useEffect(() => {
+    setSocialForm({ ...initialSocialLinks, ...(socials || {}) });
+  }, [socials]);
+
+  useEffect(() => {
+    setSeoForm({ ...settings });
+  }, [settings]);
 
   // Releases modal / form state
   const [editingRelease, setEditingRelease] = useState<MusicRelease | null>(null);

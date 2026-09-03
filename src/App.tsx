@@ -140,7 +140,9 @@ export default function App() {
     else if (currentPath === '/videos') pageTitle = `Music Videos — ${artist.name}`;
     else if (currentPath === '/photos') pageTitle = `Photography — ${artist.name}`;
     else if (currentPath === '/about') pageTitle = `About ${artist.name} — Biography`;
-    else if (currentPath.startsWith('/admintanbyr')) pageTitle = `Admin Portal — ${artist.name}`;
+    else if (currentPath.startsWith('/admin') || currentPath.startsWith('/admintanbyr')) {
+      pageTitle = `Admin Portal — ${artist.name}`;
+    }
 
     document.title = pageTitle;
 
@@ -149,7 +151,7 @@ export default function App() {
       metaDesc.setAttribute(
         'content',
         settings.metaDescription ||
-          `Official website of ${artist.name} — independent artist, singer and songwriter from Bangladesh.`
+          `Official website of ${artist.name} — independent artist, singer and songwriter.`
       );
     }
   }, [currentPath, settings, artist]);
@@ -167,9 +169,15 @@ export default function App() {
     : photos;
 
   // -----------------------------------------------------------------
-  // SECURE ADMIN ROUTING (/admintanbyr)
+  // SECURE ADMIN ROUTING (/admin or /admintanbyr)
   // -----------------------------------------------------------------
-  if (currentPath.startsWith('/admintanbyr')) {
+  const isAdminRoute =
+    currentPath === '/admin' ||
+    currentPath.startsWith('/admin/') ||
+    currentPath === '/admintanbyr' ||
+    currentPath.startsWith('/admintanbyr/');
+
+  if (isAdminRoute) {
     // If authenticated as admin, render full CMS dashboard
     if (authState.isAdmin) {
       return (
@@ -182,7 +190,7 @@ export default function App() {
           settings={settings}
           onRefreshData={loadAppData}
           onExitToPublic={() => navigate('/')}
-          onLogout={() => navigate('/admintanbyr')}
+          onLogout={() => navigate('/admin')}
         />
       );
     }
@@ -190,19 +198,19 @@ export default function App() {
     // Otherwise render secure login
     return (
       <AdminLoginPage
-        onLoginSuccess={() => navigate('/admintanbyr/dashboard')}
+        onLoginSuccess={() => navigate('/admin')}
         onExitToPublic={() => navigate('/')}
       />
     );
   }
 
   // -----------------------------------------------------------------
-  // PUBLIC WEBSITE (Zero Admin Buttons, Pristine Artist Presentation)
+  // PUBLIC WEBSITE
   // -----------------------------------------------------------------
   return (
     <div className="min-h-screen flex flex-col bg-[#070709] text-neutral-100 font-sans selection:bg-white selection:text-black">
       {/* Public Navbar */}
-      <Navbar currentPath={currentPath} onNavigate={navigate} />
+      <Navbar currentPath={currentPath} onNavigate={navigate} socials={socials} />
 
       {/* Main Page Routing */}
       <main className="flex-grow">
@@ -244,8 +252,8 @@ export default function App() {
         )}
       </main>
 
-      {/* Public Social Footer */}
-      <Footer socials={socials} />
+      {/* Public Social Footer with Admin Access */}
+      <Footer socials={socials} onNavigate={navigate} />
 
       {/* Global Interactive Modals */}
       <VideoModal

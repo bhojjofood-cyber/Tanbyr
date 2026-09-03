@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { Lock, AlertCircle, Loader2, ArrowLeft } from 'lucide-react';
-import { loginWithCredentials, isFirebaseConfigured } from '../../lib/firebase';
+import { Lock, AlertCircle, Loader2, ArrowLeft, KeyRound } from 'lucide-react';
+import { loginWithCredentials, loginDemoAdmin, isFirebaseConfigured } from '../../lib/firebase';
 
 interface AdminLoginPageProps {
   onLoginSuccess: () => void;
@@ -20,14 +20,9 @@ export const AdminLoginPage: React.FC<AdminLoginPageProps> = ({
     e.preventDefault();
     setErrorMessage(null);
 
-    if (!email.trim() || !password.trim()) {
-      setErrorMessage('Please enter both admin email and password.');
-      return;
-    }
-
     setIsLoading(true);
     try {
-      const result = await loginWithCredentials(email.trim(), password);
+      const result = await loginWithCredentials(email.trim() || 'admin@tanbyr.com', password || 'admin123');
       if (result.success) {
         onLoginSuccess();
       } else {
@@ -38,6 +33,11 @@ export const AdminLoginPage: React.FC<AdminLoginPageProps> = ({
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleQuickDemo = () => {
+    loginDemoAdmin();
+    onLoginSuccess();
   };
 
   return (
@@ -128,9 +128,21 @@ export const AdminLoginPage: React.FC<AdminLoginPageProps> = ({
                 <span>AUTHENTICATING...</span>
               </>
             ) : (
-              <span>LOGIN</span>
+              <span>LOGIN TO CMS</span>
             )}
           </button>
+
+          {!isFirebaseConfigured && (
+            <button
+              id="admin-quick-demo-btn"
+              type="button"
+              onClick={handleQuickDemo}
+              className="w-full py-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-white font-medium text-xs tracking-[0.2em] uppercase transition-all duration-300 flex items-center justify-center space-x-2 cursor-pointer"
+            >
+              <KeyRound className="w-3.5 h-3.5 text-amber-400" />
+              <span>Instant Preview Access</span>
+            </button>
+          )}
         </form>
 
         {/* Status notice */}
@@ -149,7 +161,7 @@ export const AdminLoginPage: React.FC<AdminLoginPageProps> = ({
           </div>
           {!isFirebaseConfigured && (
             <p className="text-[11px] text-neutral-400 mt-2 leading-relaxed">
-              Enter any admin email (e.g. <span className="text-neutral-300">admin@tanbyr.com</span>) to preview the CMS.
+              Click &ldquo;Instant Preview Access&rdquo; or enter any admin email to explore the full dashboard.
             </p>
           )}
         </div>

@@ -114,22 +114,40 @@ function setLocalItem<T>(key: string, data: T): void {
 
 // ARTIST PROFILE
 export async function getArtistProfile(): Promise<ArtistProfile> {
+  const sanitizeArtist = (data: Partial<ArtistProfile> | null | undefined): ArtistProfile => {
+    const merged = { ...initialArtistProfile, ...(data || {}) };
+    // Migrate legacy placeholders
+    if (merged.location === 'Dhaka, Bangladesh' || merged.location === 'Dhaka') {
+      merged.location = '';
+    }
+    if (merged.country === 'Bangladesh') {
+      merged.country = '';
+    }
+    if (!merged.activeSince || merged.activeSince === '2024') {
+      merged.activeSince = '2026';
+    }
+    if (!merged.genre || merged.genre === 'Contemporary Bengali Indie / Singer-Songwriter' || merged.genre === 'Contemporary Bengali Indie & Soul' || merged.genre === 'Bengali Indie / Pop') {
+      merged.genre = '#Banglapop';
+    }
+    return merged;
+  };
+
   if (db) {
     try {
       const docRef = doc(db, 'artists', 'profile');
       const snap = await getDoc(docRef);
       if (snap.exists() && snap.data()) {
-        return { ...initialArtistProfile, ...(snap.data() as ArtistProfile) };
+        return sanitizeArtist(snap.data() as ArtistProfile);
       }
       // If doc does not exist yet in Firestore, return default
       const local = getLocalItem<ArtistProfile>(STORAGE_KEYS.ARTIST, initialArtistProfile);
-      return { ...initialArtistProfile, ...(local || {}) };
+      return sanitizeArtist(local);
     } catch (err) {
       console.warn('Error reading artist from Firestore, using local fallback:', err);
     }
   }
   const local = getLocalItem<ArtistProfile>(STORAGE_KEYS.ARTIST, initialArtistProfile);
-  return { ...initialArtistProfile, ...(local || {}) };
+  return sanitizeArtist(local);
 }
 
 export async function updateArtistProfile(profile: ArtistProfile): Promise<void> {
@@ -451,13 +469,23 @@ export async function loginWithCredentials(email: string, password: string): Pro
 
   // Fallback demo authentication for preview environment
   // Allows testing the admin UI prior to user configuring real Firebase credentials
-  if (email.toLowerCase().includes('admin') || email.toLowerCase().includes('tanbyr') || password.length >= 6) {
+  const cleanEmail = email.trim().toLowerCase();
+  if (cleanEmail.includes('admin') || cleanEmail.includes('tanbyr') || cleanEmail.includes('tanbir') || cleanEmail.includes('@') || password.length >= 4) {
     localStorage.setItem(STORAGE_KEYS.DEMO_AUTH, 'true');
     window.dispatchEvent(new Event('tanbyr_auth_changed'));
     return { success: true, isAuthorized: true };
   } else {
-    return { success: false, error: 'Invalid credentials. In preview mode, enter any admin email or password (min 6 chars).' };
+    // Default allow for seamless preview testing
+    localStorage.setItem(STORAGE_KEYS.DEMO_AUTH, 'true');
+    window.dispatchEvent(new Event('tanbyr_auth_changed'));
+    return { success: true, isAuthorized: true };
   }
+}
+
+export function loginDemoAdmin(): { success: boolean; isAuthorized: boolean } {
+  localStorage.setItem(STORAGE_KEYS.DEMO_AUTH, 'true');
+  window.dispatchEvent(new Event('tanbyr_auth_changed'));
+  return { success: true, isAuthorized: true };
 }
 
 export async function logoutUser(): Promise<void> {

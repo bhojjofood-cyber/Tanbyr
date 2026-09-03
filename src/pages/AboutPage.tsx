@@ -43,7 +43,7 @@ export const AboutPage: React.FC<AboutPageProps> = ({ artist, socials }) => {
                   {artist.name}
                 </span>
                 <span className="text-xs tracking-wider text-neutral-400 uppercase block mt-0.5">
-                  Official Portrait &middot; {artist.location || 'Dhaka'}
+                  Official Portrait{artist.location && artist.location !== 'Dhaka, Bangladesh' && artist.location !== 'Dhaka' ? ` · ${artist.location}` : ''}
                 </span>
               </div>
             </div>
@@ -62,31 +62,35 @@ export const AboutPage: React.FC<AboutPageProps> = ({ artist, socials }) => {
                     <Music className="w-3.5 h-3.5" />
                     <span>Genre</span>
                   </span>
-                  <span className="text-white font-medium text-right">{artist.genre || 'Bengali Indie / Pop'}</span>
+                  <span className="text-white font-medium text-right">{artist.genre || '#Banglapop'}</span>
                 </div>
 
-                <div className="flex items-center justify-between">
-                  <span className="text-neutral-400 flex items-center space-x-2">
-                    <Globe className="w-3.5 h-3.5" />
-                    <span>Country</span>
-                  </span>
-                  <span className="text-white font-medium">{artist.country || 'Bangladesh'}</span>
-                </div>
+                {artist.country && artist.country !== 'Bangladesh' && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-neutral-400 flex items-center space-x-2">
+                      <Globe className="w-3.5 h-3.5" />
+                      <span>Country</span>
+                    </span>
+                    <span className="text-white font-medium">{artist.country}</span>
+                  </div>
+                )}
 
-                <div className="flex items-center justify-between">
-                  <span className="text-neutral-400 flex items-center space-x-2">
-                    <MapPin className="w-3.5 h-3.5" />
-                    <span>Location</span>
-                  </span>
-                  <span className="text-white font-medium">{artist.location || 'Dhaka, Bangladesh'}</span>
-                </div>
+                {artist.location && artist.location !== 'Dhaka, Bangladesh' && artist.location !== 'Dhaka' && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-neutral-400 flex items-center space-x-2">
+                      <MapPin className="w-3.5 h-3.5" />
+                      <span>Location</span>
+                    </span>
+                    <span className="text-white font-medium">{artist.location}</span>
+                  </div>
+                )}
 
                 <div className="flex items-center justify-between">
                   <span className="text-neutral-400 flex items-center space-x-2">
                     <Calendar className="w-3.5 h-3.5" />
                     <span>Active Since</span>
                   </span>
-                  <span className="text-white font-medium">{artist.activeSince || '2024'}</span>
+                  <span className="text-white font-medium">{artist.activeSince || '2026'}</span>
                 </div>
               </div>
             </div>
@@ -115,7 +119,7 @@ export const AboutPage: React.FC<AboutPageProps> = ({ artist, socials }) => {
                 Sonic Identity
               </h3>
               <p className="text-sm sm:text-base text-neutral-300 font-light leading-relaxed italic">
-                &ldquo;Music begins where spoken words fail. Every melody written is an honest reflection of love, longing, and the nocturnal rhythms of Dhaka.&rdquo;
+                &ldquo;Music begins where spoken words fail. Every melody written is an honest reflection of love, longing, and heartfelt acoustic storytelling.&rdquo;
               </p>
               <p className="text-xs tracking-[0.2em] uppercase text-neutral-400 font-bold mt-4">
                 &mdash; TANBYR

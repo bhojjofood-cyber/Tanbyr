@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Menu, X, Disc3 } from 'lucide-react';
+import { Menu, X, Disc3, Lock } from 'lucide-react';
 import { SocialLinks } from '../types';
 import { SocialIcons } from './SocialIcons';
 
@@ -99,6 +99,16 @@ export const Navbar: React.FC<NavbarProps> = ({ currentPath, onNavigate, socials
             <Disc3 className="w-3.5 h-3.5 animate-[spin_6s_linear_infinite]" />
             <span>LISTEN</span>
           </button>
+
+          <button
+            id="nav-admin-link"
+            onClick={() => handleLinkClick('/admin')}
+            className="p-2 rounded-full text-neutral-500 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+            title="Admin Portal"
+            aria-label="Admin Portal"
+          >
+            <Lock className="w-3.5 h-3.5" />
+          </button>
         </div>
 
         {/* Mobile Hamburger Toggle */}
@@ -110,6 +120,16 @@ export const Navbar: React.FC<NavbarProps> = ({ currentPath, onNavigate, socials
           >
             <Disc3 className="w-3 h-3" />
             <span>LISTEN</span>
+          </button>
+
+          <button
+            id="mobile-admin-icon"
+            onClick={() => handleLinkClick('/admin')}
+            className="p-1.5 text-neutral-500 hover:text-white transition-colors cursor-pointer"
+            title="Admin Portal"
+            aria-label="Admin Portal"
+          >
+            <Lock className="w-4 h-4" />
           </button>
           
           <button
@@ -156,6 +176,18 @@ export const Navbar: React.FC<NavbarProps> = ({ currentPath, onNavigate, socials
                 <SocialIcons socials={socials} variant="drawer" />
               </div>
             )}
+
+            {/* Admin Portal Quick Link in Drawer */}
+            <div className="pt-4 border-t border-white/5 flex items-center justify-between">
+              <button
+                id="mobile-drawer-admin-link"
+                onClick={() => handleLinkClick('/admin')}
+                className="inline-flex items-center space-x-2 text-xs font-semibold tracking-[0.2em] uppercase text-neutral-400 hover:text-white transition-colors cursor-pointer"
+              >
+                <Lock className="w-3.5 h-3.5 text-neutral-400" />
+                <span>Admin Portal</span>
+              </button>
+            </div>
           </div>
         </div>
       )}
