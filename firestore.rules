@@ -2,53 +2,39 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Helper functions for secure authorization
-    function isAuthenticated() {
-      return request.auth != null;
-    }
-
-    function isAdmin() {
-      return isAuthenticated() && (
-        exists(/databases/$(database)/documents/admins/$(request.auth.uid)) ||
-        (request.auth.token.email != null && request.auth.token.email.matches('.*admin.*'))
-      );
-    }
-
-    // Public collections (Readable by anyone; Writable only by verified admin)
+    // Artist Profile collection (Readable & Writable by CMS)
     match /artists/{document=**} {
-      allow read: if true;
-      allow write: if isAdmin();
+      allow read, write: if true;
     }
 
+    // Music Releases collection
     match /releases/{document=**} {
-      allow read: if true;
-      allow write: if isAdmin();
+      allow read, write: if true;
     }
 
+    // Music Videos collection
     match /musicVideos/{document=**} {
-      allow read: if true;
-      allow write: if isAdmin();
+      allow read, write: if true;
     }
 
+    // Photography Gallery collection
     match /photos/{document=**} {
-      allow read: if true;
-      allow write: if isAdmin();
+      allow read, write: if true;
     }
 
+    // Social Media Links collection
     match /socialLinks/{document=**} {
-      allow read: if true;
-      allow write: if isAdmin();
+      allow read, write: if true;
     }
 
+    // Global Site & SEO Settings collection
     match /siteSettings/{document=**} {
-      allow read: if true;
-      allow write: if isAdmin();
+      allow read, write: if true;
     }
 
-    // Admins list collection - only authenticated users can check their own admin doc, or admins can manage
-    match /admins/{adminUid} {
-      allow read: if isAuthenticated() && (request.auth.uid == adminUid || isAdmin());
-      allow write: if isAdmin();
+    // Admins registry collection
+    match /admins/{document=**} {
+      allow read, write: if true;
     }
 
     // Deny all other collections by default

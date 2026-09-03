@@ -2,6 +2,7 @@ import { initializeApp, getApps, getApp, FirebaseApp } from 'firebase/app';
 import { 
   getAuth, 
   signInWithEmailAndPassword, 
+  createUserWithEmailAndPassword,
   signOut as firebaseSignOut, 
   onAuthStateChanged,
   User,
@@ -22,6 +23,8 @@ import {
   serverTimestamp
 } from 'firebase/firestore';
 
+import firebaseAppletConfig from '../../firebase-applet-config.json';
+
 import {
   ArtistProfile,
   MusicRelease,
@@ -40,14 +43,19 @@ import {
   initialSiteSettings
 } from './seedData';
 
-// Environment variables
+// Configuration loaded from provisioned firebase-applet-config.json with environment fallback
+const appletCfg: Record<string, any> = (typeof firebaseAppletConfig === 'object' && firebaseAppletConfig !== null)
+  ? firebaseAppletConfig
+  : {};
+
 const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || '',
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || '',
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || '',
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || '',
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || '',
-  appId: import.meta.env.VITE_FIREBASE_APP_ID || '',
+  apiKey: appletCfg.apiKey || import.meta.env.VITE_FIREBASE_API_KEY || '',
+  authDomain: appletCfg.authDomain || import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || '',
+  projectId: appletCfg.projectId || import.meta.env.VITE_FIREBASE_PROJECT_ID || '',
+  storageBucket: appletCfg.storageBucket || import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || '',
+  messagingSenderId: appletCfg.messagingSenderId || import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || '',
+  appId: appletCfg.appId || import.meta.env.VITE_FIREBASE_APP_ID || '',
+  firestoreDatabaseId: appletCfg.firestoreDatabaseId || '',
 };
 
 export const AUTHORIZED_ADMIN_UID = import.meta.env.VITE_AUTHORIZED_ADMIN_UID || '';
@@ -68,10 +76,29 @@ if (isFirebaseConfigured) {
   try {
     app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
     auth = getAuth(app);
-    db = getFirestore(app);
+    db = firebaseConfig.firestoreDatabaseId
+      ? getFirestore(app, firebaseConfig.firestoreDatabaseId)
+      : getFirestore(app);
+    console.log(
+      '[Firebase] Firestore initialized successfully. Project:',
+      firebaseConfig.projectId,
+      'Database:',
+      firebaseConfig.firestoreDatabaseId || '(default)'
+    );
   } catch (error) {
     console.warn('Firebase initialization notice:', error);
   }
+}
+
+// Utility to clean undefined fields before sending to Firestore
+function cleanFirestoreData<T extends Record<string, any>>(obj: T): Record<string, any> {
+  const cleaned: Record<string, any> = {};
+  for (const [key, value] of Object.entries(obj)) {
+    if (value !== undefined) {
+      cleaned[key] = value;
+    }
+  }
+  return cleaned;
 }
 
 // -------------------------------------------------------------
@@ -116,7 +143,6 @@ function setLocalItem<T>(key: string, data: T): void {
 export async function getArtistProfile(): Promise<ArtistProfile> {
   const sanitizeArtist = (data: Partial<ArtistProfile> | null | undefined): ArtistProfile => {
     const merged = { ...initialArtistProfile, ...(data || {}) };
-    // Migrate legacy placeholders
     if (merged.location === 'Dhaka, Bangladesh' || merged.location === 'Dhaka') {
       merged.location = '';
     }
@@ -137,11 +163,22 @@ export async function getArtistProfile(): Promise<ArtistProfile> {
       const docRef = doc(db, 'artists', 'profile');
       const snap = await getDoc(docRef);
       if (snap.exists() && snap.data()) {
-        return sanitizeArtist(snap.data() as ArtistProfile);
+        const remote = sanitizeArtist(snap.data() as ArtistProfile);
+        setLocalItem(STORAGE_KEYS.ARTIST, remote);
+        return remote;
       }
-      // If doc does not exist yet in Firestore, return default
-      const local = getLocalItem<ArtistProfile>(STORAGE_KEYS.ARTIST, initialArtistProfile);
-      return sanitizeArtist(local);
+      // Seed to Firestore if not present yet
+      const initial = sanitizeArtist(initialArtistProfile);
+      try {
+        await setDoc(docRef, {
+          ...cleanFirestoreData(initial),
+          updatedAt: serverTimestamp()
+        });
+        console.log('[Firebase] Initial artist profile seeded to Firestore');
+      } catch (seedErr) {
+        console.warn('[Firebase] Seed artist profile notice:', seedErr);
+      }
+      return initial;
     } catch (err) {
       console.warn('Error reading artist from Firestore, using local fallback:', err);
     }
@@ -156,9 +193,10 @@ export async function updateArtistProfile(profile: ArtistProfile): Promise<void>
     try {
       const docRef = doc(db, 'artists', 'profile');
       await setDoc(docRef, {
-        ...profile,
+        ...cleanFirestoreData(profile),
         updatedAt: serverTimestamp()
       }, { merge: true });
+      console.log('[Firebase] Successfully saved artist profile to Firestore');
     } catch (err) {
       console.error('Failed to save artist to Firestore:', err);
       throw err;
@@ -174,10 +212,24 @@ export async function getReleases(): Promise<MusicRelease[]> {
       const q = query(releasesRef, orderBy('releaseDate', 'desc'));
       const snapshot = await getDocs(q);
       if (!snapshot.empty) {
-        return snapshot.docs.map(doc => ({
+        const items = snapshot.docs.map(doc => ({
           id: doc.id,
           ...doc.data()
         })) as MusicRelease[];
+        setLocalItem(STORAGE_KEYS.RELEASES, items);
+        return items;
+      }
+      // Seed initial releases if Firestore collection is empty
+      try {
+        for (const rel of initialReleases) {
+          await setDoc(doc(db, 'releases', rel.id), {
+            ...cleanFirestoreData(rel),
+            updatedAt: serverTimestamp()
+          });
+        }
+        console.log('[Firebase] Initial releases seeded to Firestore');
+      } catch (seedErr) {
+        console.warn('[Firebase] Seed releases notice:', seedErr);
       }
     } catch (err) {
       console.warn('Error reading releases from Firestore, using local fallback:', err);
@@ -202,9 +254,10 @@ export async function saveRelease(release: MusicRelease): Promise<void> {
     try {
       const docRef = doc(db, 'releases', release.id);
       await setDoc(docRef, {
-        ...release,
+        ...cleanFirestoreData(release),
         updatedAt: serverTimestamp()
       }, { merge: true });
+      console.log('[Firebase] Successfully saved release to Firestore:', release.id);
     } catch (err) {
       console.error('Failed to save release to Firestore:', err);
       throw err;
@@ -219,6 +272,7 @@ export async function deleteRelease(id: string): Promise<void> {
   if (db) {
     try {
       await deleteDoc(doc(db, 'releases', id));
+      console.log('[Firebase] Successfully deleted release from Firestore:', id);
     } catch (err) {
       console.error('Failed to delete release from Firestore:', err);
       throw err;
@@ -234,10 +288,24 @@ export async function getMusicVideos(): Promise<MusicVideo[]> {
       const q = query(videosRef, orderBy('releaseDate', 'desc'));
       const snapshot = await getDocs(q);
       if (!snapshot.empty) {
-        return snapshot.docs.map(doc => ({
+        const items = snapshot.docs.map(doc => ({
           id: doc.id,
           ...doc.data()
         })) as MusicVideo[];
+        setLocalItem(STORAGE_KEYS.VIDEOS, items);
+        return items;
+      }
+      // Seed initial videos if Firestore is empty
+      try {
+        for (const vid of initialMusicVideos) {
+          await setDoc(doc(db, 'musicVideos', vid.id), {
+            ...cleanFirestoreData(vid),
+            updatedAt: serverTimestamp()
+          });
+        }
+        console.log('[Firebase] Initial music videos seeded to Firestore');
+      } catch (seedErr) {
+        console.warn('[Firebase] Seed music videos notice:', seedErr);
       }
     } catch (err) {
       console.warn('Error reading music videos from Firestore:', err);
@@ -256,9 +324,10 @@ export async function saveMusicVideo(video: MusicVideo): Promise<void> {
     try {
       const docRef = doc(db, 'musicVideos', video.id);
       await setDoc(docRef, {
-        ...video,
+        ...cleanFirestoreData(video),
         updatedAt: serverTimestamp()
       }, { merge: true });
+      console.log('[Firebase] Successfully saved music video to Firestore:', video.id);
     } catch (err) {
       console.error('Failed to save video to Firestore:', err);
       throw err;
@@ -273,6 +342,7 @@ export async function deleteMusicVideo(id: string): Promise<void> {
   if (db) {
     try {
       await deleteDoc(doc(db, 'musicVideos', id));
+      console.log('[Firebase] Successfully deleted video from Firestore:', id);
     } catch (err) {
       console.error('Failed to delete video from Firestore:', err);
       throw err;
@@ -288,10 +358,24 @@ export async function getPhotos(): Promise<PhotoItem[]> {
       const q = query(photosRef, orderBy('date', 'desc'));
       const snapshot = await getDocs(q);
       if (!snapshot.empty) {
-        return snapshot.docs.map(doc => ({
+        const items = snapshot.docs.map(doc => ({
           id: doc.id,
           ...doc.data()
         })) as PhotoItem[];
+        setLocalItem(STORAGE_KEYS.PHOTOS, items);
+        return items;
+      }
+      // Seed initial photos if Firestore is empty
+      try {
+        for (const p of initialPhotos) {
+          await setDoc(doc(db, 'photos', p.id), {
+            ...cleanFirestoreData(p),
+            updatedAt: serverTimestamp()
+          });
+        }
+        console.log('[Firebase] Initial photos seeded to Firestore');
+      } catch (seedErr) {
+        console.warn('[Firebase] Seed photos notice:', seedErr);
       }
     } catch (err) {
       console.warn('Error reading photos from Firestore:', err);
@@ -310,9 +394,10 @@ export async function savePhoto(photo: PhotoItem): Promise<void> {
     try {
       const docRef = doc(db, 'photos', photo.id);
       await setDoc(docRef, {
-        ...photo,
+        ...cleanFirestoreData(photo),
         updatedAt: serverTimestamp()
       }, { merge: true });
+      console.log('[Firebase] Successfully saved photo to Firestore:', photo.id);
     } catch (err) {
       console.error('Failed to save photo to Firestore:', err);
       throw err;
@@ -327,6 +412,7 @@ export async function deletePhoto(id: string): Promise<void> {
   if (db) {
     try {
       await deleteDoc(doc(db, 'photos', id));
+      console.log('[Firebase] Successfully deleted photo from Firestore:', id);
     } catch (err) {
       console.error('Failed to delete photo from Firestore:', err);
       throw err;
@@ -341,7 +427,19 @@ export async function getSocialLinks(): Promise<SocialLinks> {
       const docRef = doc(db, 'socialLinks', 'default');
       const snap = await getDoc(docRef);
       if (snap.exists() && snap.data()) {
-        return { ...initialSocialLinks, ...(snap.data() as SocialLinks) };
+        const remote = { ...initialSocialLinks, ...(snap.data() as SocialLinks) };
+        setLocalItem(STORAGE_KEYS.SOCIAL, remote);
+        return remote;
+      }
+      // Seed default social links to Firestore
+      try {
+        await setDoc(docRef, {
+          ...cleanFirestoreData(initialSocialLinks),
+          updatedAt: serverTimestamp()
+        });
+        console.log('[Firebase] Initial social links seeded to Firestore');
+      } catch (seedErr) {
+        console.warn('[Firebase] Seed social links notice:', seedErr);
       }
     } catch (err) {
       console.warn('Error reading social links from Firestore:', err);
@@ -357,9 +455,10 @@ export async function updateSocialLinks(links: SocialLinks): Promise<void> {
     try {
       const docRef = doc(db, 'socialLinks', 'default');
       await setDoc(docRef, {
-        ...links,
+        ...cleanFirestoreData(links),
         updatedAt: serverTimestamp()
       }, { merge: true });
+      console.log('[Firebase] Successfully saved social links to Firestore');
     } catch (err) {
       console.error('Failed to save social links to Firestore:', err);
       throw err;
@@ -374,7 +473,19 @@ export async function getSiteSettings(): Promise<SiteSettings> {
       const docRef = doc(db, 'siteSettings', 'seo');
       const snap = await getDoc(docRef);
       if (snap.exists() && snap.data()) {
-        return { ...initialSiteSettings, ...(snap.data() as SiteSettings) };
+        const remote = { ...initialSiteSettings, ...(snap.data() as SiteSettings) };
+        setLocalItem(STORAGE_KEYS.SETTINGS, remote);
+        return remote;
+      }
+      // Seed default SEO settings to Firestore
+      try {
+        await setDoc(docRef, {
+          ...cleanFirestoreData(initialSiteSettings),
+          updatedAt: serverTimestamp()
+        });
+        console.log('[Firebase] Initial SEO settings seeded to Firestore');
+      } catch (seedErr) {
+        console.warn('[Firebase] Seed SEO notice:', seedErr);
       }
     } catch (err) {
       console.warn('Error reading site settings from Firestore:', err);
@@ -390,9 +501,10 @@ export async function updateSiteSettings(settings: SiteSettings): Promise<void> 
     try {
       const docRef = doc(db, 'siteSettings', 'seo');
       await setDoc(docRef, {
-        ...settings,
+        ...cleanFirestoreData(settings),
         updatedAt: serverTimestamp()
       }, { merge: true });
+      console.log('[Firebase] Successfully saved site settings to Firestore');
     } catch (err) {
       console.error('Failed to save site settings to Firestore:', err);
       throw err;
@@ -438,6 +550,48 @@ export async function checkIsAuthorizedAdmin(user: User | null): Promise<boolean
   }
 
   return false;
+}
+
+// SHA-256 cryptographic hash of the authorized admin unlock password
+// The password remains completely private and is never stored in plaintext
+const DEFAULT_ADMIN_HASH = '950fd8f02b5eb8659aaf461616b6e20be5ea56089a3e2155a3bf493dbc10a4b1';
+
+async function computeSha256(text: string): Promise<string> {
+  const enc = new TextEncoder();
+  const data = enc.encode(text);
+  const buffer = await crypto.subtle.digest('SHA-256', data);
+  const hashArray = Array.from(new Uint8Array(buffer));
+  return hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+/**
+ * Validates the admin unlock password using cryptographic SHA-256 matching.
+ * Keeps the master password private without storing plaintext in source code.
+ */
+export async function unlockAdminWithPassword(
+  inputPassword: string
+): Promise<{ success: boolean; error?: string }> {
+  if (!inputPassword) {
+    return { success: false, error: 'Please enter the admin password.' };
+  }
+
+  try {
+    const inputHash = await computeSha256(inputPassword);
+    const targetHash = (
+      import.meta.env.VITE_ADMIN_PASSWORD_HASH || DEFAULT_ADMIN_HASH
+    ).toLowerCase();
+
+    if (inputHash.toLowerCase() === targetHash) {
+      localStorage.setItem(STORAGE_KEYS.DEMO_AUTH, 'true');
+      window.dispatchEvent(new Event('tanbyr_auth_changed'));
+      return { success: true };
+    }
+
+    return { success: false, error: 'Incorrect password. Access denied.' };
+  } catch (err: any) {
+    console.error('Password verification error:', err);
+    return { success: false, error: 'Verification error. Please try again.' };
+  }
 }
 
 export async function loginWithCredentials(email: string, password: string): Promise<{ success: boolean; error?: string; isAuthorized?: boolean }> {

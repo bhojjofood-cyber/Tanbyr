@@ -43,7 +43,7 @@ export const VideosPage: React.FC<VideosPageProps> = ({ videos, onPlayVideo }) =
             No Videos Found
           </h3>
           <p className="text-sm text-neutral-400 max-w-md mx-auto">
-            Music videos will appear here once published from the admin panel.
+            Music videos will appear here once released.
           </p>
         </div>
       )}

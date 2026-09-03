@@ -252,8 +252,8 @@ export default function App() {
         )}
       </main>
 
-      {/* Public Social Footer with Admin Access */}
-      <Footer socials={socials} onNavigate={navigate} />
+      {/* Public Social Footer */}
+      <Footer socials={socials} />
 
       {/* Global Interactive Modals */}
       <VideoModal

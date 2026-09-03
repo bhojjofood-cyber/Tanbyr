@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { Lock, AlertCircle, Loader2, ArrowLeft, KeyRound } from 'lucide-react';
-import { loginWithCredentials, loginDemoAdmin, isFirebaseConfigured } from '../../lib/firebase';
+import { Lock, AlertCircle, Loader2, ArrowLeft, Eye, EyeOff, ShieldCheck } from 'lucide-react';
+import { unlockAdminWithPassword, isFirebaseConfigured } from '../../lib/firebase';
 
 interface AdminLoginPageProps {
   onLoginSuccess: () => void;
@@ -11,8 +11,8 @@ export const AdminLoginPage: React.FC<AdminLoginPageProps> = ({
   onLoginSuccess,
   onExitToPublic,
 }) => {
-  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -20,32 +20,33 @@ export const AdminLoginPage: React.FC<AdminLoginPageProps> = ({
     e.preventDefault();
     setErrorMessage(null);
 
+    if (!password) {
+      setErrorMessage('Please enter the password to unlock.');
+      return;
+    }
+
     setIsLoading(true);
     try {
-      const result = await loginWithCredentials(email.trim() || 'admin@tanbyr.com', password || 'admin123');
+      const result = await unlockAdminWithPassword(password);
       if (result.success) {
         onLoginSuccess();
       } else {
-        setErrorMessage(result.error || 'Invalid credentials or unauthorized access.');
+        setErrorMessage(result.error || 'Incorrect password. Access denied.');
       }
     } catch (err: any) {
-      setErrorMessage(err.message || 'Authentication error. Please verify your connection.');
+      setErrorMessage(err.message || 'Authentication error. Please try again.');
     } finally {
       setIsLoading(false);
     }
-  };
-
-  const handleQuickDemo = () => {
-    loginDemoAdmin();
-    onLoginSuccess();
   };
 
   return (
     <div className="min-h-screen bg-[#050507] text-white flex flex-col items-center justify-center p-6 relative">
       {/* Discreet Exit Link */}
       <button
+        id="admin-exit-btn"
         onClick={onExitToPublic}
-        className="absolute top-8 left-8 inline-flex items-center space-x-2 text-xs font-semibold tracking-wider text-neutral-400 hover:text-white uppercase transition-colors cursor-pointer"
+        className="absolute top-8 left-8 inline-flex items-center space-x-2 text-xs font-semibold tracking-[0.2em] text-neutral-400 hover:text-white uppercase transition-colors cursor-pointer"
       >
         <ArrowLeft className="w-4 h-4" />
         <span>Return to Website</span>
@@ -57,92 +58,86 @@ export const AdminLoginPage: React.FC<AdminLoginPageProps> = ({
 
         {/* Header */}
         <div className="text-center mb-8">
-          <div className="w-12 h-12 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center mx-auto mb-4 text-white">
-            <Lock className="w-5 h-5" />
+          <div className="w-14 h-14 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center mx-auto mb-4 text-white shadow-inner">
+            <Lock className="w-6 h-6" />
           </div>
           <h1 className="text-2xl font-bold tracking-[0.25em] text-white uppercase">
             TANBYR ADMIN
           </h1>
           <p className="text-xs text-neutral-400 tracking-wider uppercase mt-1">
-            Official CMS &middot; Restricted Access
+            Official CMS &middot; Protected Access
           </p>
         </div>
 
         {/* Error Alert */}
         {errorMessage && (
-          <div className="mb-6 p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-xs flex items-start space-x-3">
+          <div
+            id="admin-error-alert"
+            className="mb-6 p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-xs flex items-start space-x-3"
+          >
             <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
             <span className="leading-relaxed">{errorMessage}</span>
           </div>
         )}
 
-        {/* Login Form */}
-        <form onSubmit={handleSubmit} className="space-y-5">
-          <div>
-            <label
-              htmlFor="admin-email"
-              className="block text-xs font-semibold tracking-wider text-neutral-400 uppercase mb-2"
-            >
-              Email
-            </label>
-            <input
-              id="admin-email"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="admin@tanbyr.com"
-              autoComplete="email"
-              required
-              className="w-full px-4 py-3 rounded-xl bg-[#14141a] border border-white/10 text-white text-sm placeholder:text-neutral-400 focus:outline-none focus:border-white/40 transition-colors"
-            />
-          </div>
-
+        {/* Single Password Unlock Form */}
+        <form onSubmit={handleSubmit} className="space-y-6">
           <div>
             <label
               htmlFor="admin-password"
               className="block text-xs font-semibold tracking-wider text-neutral-400 uppercase mb-2"
             >
-              Password
+              Master Password
             </label>
-            <input
-              id="admin-password"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="••••••••••••"
-              autoComplete="current-password"
-              required
-              className="w-full px-4 py-3 rounded-xl bg-[#14141a] border border-white/10 text-white text-sm placeholder:text-neutral-400 focus:outline-none focus:border-white/40 transition-colors"
-            />
+            <div className="relative">
+              <input
+                id="admin-password"
+                type={showPassword ? 'text' : 'password'}
+                value={password}
+                onChange={(e) => {
+                  setPassword(e.target.value);
+                  if (errorMessage) setErrorMessage(null);
+                }}
+                placeholder="Enter password to unlock..."
+                autoComplete="current-password"
+                autoFocus
+                required
+                className="w-full pl-4 pr-11 py-3.5 rounded-xl bg-[#14141a] border border-white/10 text-white text-sm placeholder:text-neutral-500 focus:outline-none focus:border-white/40 transition-colors font-mono tracking-wider"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-neutral-400 hover:text-white transition-colors cursor-pointer"
+                title={showPassword ? 'Hide password' : 'Show password'}
+                aria-label={showPassword ? 'Hide password' : 'Show password'}
+              >
+                {showPassword ? (
+                  <EyeOff className="w-4 h-4" />
+                ) : (
+                  <Eye className="w-4 h-4" />
+                )}
+              </button>
+            </div>
           </div>
 
           <button
-            id="admin-login-btn"
+            id="admin-unlock-btn"
             type="submit"
-            disabled={isLoading}
-            className="w-full mt-4 py-3.5 rounded-xl bg-white text-black font-bold text-xs tracking-[0.25em] uppercase hover:bg-neutral-200 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2 cursor-pointer shadow-lg"
+            disabled={isLoading || !password}
+            className="w-full py-3.5 rounded-xl bg-white text-black font-bold text-xs tracking-[0.25em] uppercase hover:bg-neutral-200 transition-all duration-300 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center space-x-2 cursor-pointer shadow-lg"
           >
             {isLoading ? (
               <>
                 <Loader2 className="w-4 h-4 animate-spin" />
-                <span>AUTHENTICATING...</span>
+                <span>VERIFYING...</span>
               </>
             ) : (
-              <span>LOGIN TO CMS</span>
+              <>
+                <ShieldCheck className="w-4 h-4" />
+                <span>UNLOCK ADMIN</span>
+              </>
             )}
           </button>
-
-          {!isFirebaseConfigured && (
-            <button
-              id="admin-quick-demo-btn"
-              type="button"
-              onClick={handleQuickDemo}
-              className="w-full py-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-white font-medium text-xs tracking-[0.2em] uppercase transition-all duration-300 flex items-center justify-center space-x-2 cursor-pointer"
-            >
-              <KeyRound className="w-3.5 h-3.5 text-amber-400" />
-              <span>Instant Preview Access</span>
-            </button>
-          )}
         </form>
 
         {/* Status notice */}
@@ -150,20 +145,18 @@ export const AdminLoginPage: React.FC<AdminLoginPageProps> = ({
           <div className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-full text-[10px] tracking-wider uppercase bg-white/5 text-neutral-400">
             <span
               className={`w-2 h-2 rounded-full ${
-                isFirebaseConfigured ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'
+                isFirebaseConfigured ? 'bg-emerald-400 animate-pulse' : 'bg-white/40'
               }`}
             />
             <span>
               {isFirebaseConfigured
-                ? 'Firebase Auth Active'
-                : 'Preview Mode (Local Auth Active)'}
+                ? 'Firestore Cloud Database Active'
+                : 'Local Secure Storage Active'}
             </span>
           </div>
-          {!isFirebaseConfigured && (
-            <p className="text-[11px] text-neutral-400 mt-2 leading-relaxed">
-              Click &ldquo;Instant Preview Access&rdquo; or enter any admin email to explore the full dashboard.
-            </p>
-          )}
+          <p className="text-[11px] text-neutral-400 mt-2 leading-relaxed">
+            All updates made in the CMS save directly to live Firebase Firestore.
+          </p>
         </div>
       </div>
     </div>

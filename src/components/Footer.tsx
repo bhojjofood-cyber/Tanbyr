@@ -1,14 +1,12 @@
 import React from 'react';
-import { Lock } from 'lucide-react';
 import { SocialLinks } from '../types';
 import { SocialIcons } from './SocialIcons';
 
 interface FooterProps {
   socials?: SocialLinks | null;
-  onNavigate?: (path: string) => void;
 }
 
-export const Footer: React.FC<FooterProps> = ({ socials, onNavigate }) => {
+export const Footer: React.FC<FooterProps> = ({ socials }) => {
   return (
     <footer id="main-footer" className="bg-[#050507] border-t border-white/5 py-16 px-6 sm:px-8 mt-24">
       <div className="max-w-7xl mx-auto flex flex-col items-center text-center">
@@ -38,25 +36,10 @@ export const Footer: React.FC<FooterProps> = ({ socials, onNavigate }) => {
         {/* Divider */}
         <div className="w-12 h-[1px] bg-white/10 mb-8" />
 
-        {/* Copyright, Tag & Admin Access */}
-        <div className="flex flex-col sm:flex-row items-center justify-center gap-3 text-xs tracking-[0.15em] text-neutral-400">
-          <span>&copy; 2026 TANBYR. All Rights Reserved. &middot; #Banglapop</span>
-          {onNavigate && (
-            <>
-              <span className="hidden sm:inline text-neutral-600">&middot;</span>
-              <button
-                id="footer-admin-link"
-                type="button"
-                onClick={() => onNavigate('/admin')}
-                className="inline-flex items-center space-x-1.5 py-1 px-3 rounded-full text-neutral-400 hover:text-white hover:bg-white/5 border border-white/10 transition-all cursor-pointer uppercase tracking-[0.2em] text-[11px]"
-                title="Admin Management Portal"
-              >
-                <Lock className="w-3 h-3 text-neutral-400" />
-                <span>Admin</span>
-              </button>
-            </>
-          )}
-        </div>
+        {/* Copyright & Tag */}
+        <p className="text-xs tracking-[0.15em] text-neutral-400">
+          &copy; 2026 TANBYR. All Rights Reserved. &middot; #Banglapop
+        </p>
       </div>
     </footer>
   );
