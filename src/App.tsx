@@ -43,10 +43,35 @@ import {
   AuthState,
 } from './lib/firebase';
 
+function getNormalizedPath(): string {
+  // 1. Check hash route (e.g. #/admin, #admin, #music) - avoids server 404s completely
+  if (window.location.hash) {
+    const rawHash = window.location.hash.replace(/^#\/?/, '');
+    if (rawHash && rawHash !== '/') {
+      return '/' + rawHash.replace(/^\/+/, '').replace(/\/+$/, '');
+    }
+  }
+
+  // 2. Check query parameters (e.g. ?admin, ?p=admin, ?page=admin)
+  if (window.location.search) {
+    const searchParams = new URLSearchParams(window.location.search);
+    if (searchParams.has('admin')) return '/admin';
+    const p = searchParams.get('p') || searchParams.get('page') || searchParams.get('route');
+    if (p) return '/' + p.replace(/^\/+/, '').replace(/\/+$/, '');
+  }
+
+  // 3. Fallback to standard pathname
+  const path = window.location.pathname || '/';
+  if (path !== '/') {
+    return '/' + path.replace(/^\/+/, '').replace(/\/+$/, '');
+  }
+  return '/';
+}
+
 export default function App() {
   // Navigation State
   const [currentPath, setCurrentPath] = useState<string>(() => {
-    return window.location.pathname || '/';
+    return getNormalizedPath();
   });
 
   // Data State
@@ -97,21 +122,41 @@ export default function App() {
     }
   }, []);
 
-  // Listen for browser navigation (back/forward button)
-  useEffect(() => {
-    const handlePopState = () => {
-      setCurrentPath(window.location.pathname || '/');
-    };
-    window.addEventListener('popstate', handlePopState);
-    return () => window.removeEventListener('popstate', handlePopState);
-  }, []);
-
   // Safe client-side route navigation
   const navigate = useCallback((path: string) => {
-    window.history.pushState({}, '', path);
-    setCurrentPath(path);
+    try {
+      window.history.pushState({}, '', path);
+    } catch {
+      window.location.hash = path;
+    }
+    const cleanPath = path.replace(/\/+$/, '') || '/';
+    setCurrentPath(cleanPath);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }, []);
+
+  // Listen for browser navigation (back/forward button) & hash route change
+  useEffect(() => {
+    const handlePopState = () => {
+      setCurrentPath(getNormalizedPath());
+    };
+    window.addEventListener('popstate', handlePopState);
+    window.addEventListener('hashchange', handlePopState);
+
+    // Discreet shortcut to toggle /admin (Ctrl+Alt+A or Cmd+Alt+A)
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.altKey && e.key.toLowerCase() === 'a') {
+        e.preventDefault();
+        navigate('/admin');
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+      window.removeEventListener('hashchange', handlePopState);
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [navigate]);
 
   // Initial load and auth subscription
   useEffect(() => {
@@ -253,7 +298,7 @@ export default function App() {
       </main>
 
       {/* Public Social Footer */}
-      <Footer socials={socials} />
+      <Footer socials={socials} onNavigate={navigate} />
 
       {/* Global Interactive Modals */}
       <VideoModal
