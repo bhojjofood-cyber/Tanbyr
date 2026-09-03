@@ -1,0 +1,99 @@
+{
+  "entities": {
+    "artists": {
+      "title": "Artist Profile",
+      "description": "Artist biography, photographs, musical genre, and active credentials",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "tagline": { "type": "string" },
+        "bio": { "type": "string" },
+        "profileImageUrl": { "type": "string" },
+        "heroImageUrl": { "type": "string" },
+        "genre": { "type": "string" },
+        "country": { "type": "string" },
+        "location": { "type": "string" },
+        "activeSince": { "type": "string" }
+      },
+      "required": ["name", "genre", "country"]
+    },
+    "releases": {
+      "title": "Music Release",
+      "description": "Official singles, EPs, and albums released by TANBYR",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "type": { "type": "string" },
+        "releaseDate": { "type": "string" },
+        "coverImage": { "type": "string" },
+        "description": { "type": "string" },
+        "spotifyUrl": { "type": "string" },
+        "youtubeUrl": { "type": "string" },
+        "youtubeMusicUrl": { "type": "string" },
+        "appleMusicUrl": { "type": "string" },
+        "otherUrl": { "type": "string" },
+        "lyricsUrl": { "type": "string" },
+        "credits": { "type": "string" },
+        "featured": { "type": "boolean" },
+        "order": { "type": "number" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["title", "type", "releaseDate"]
+    },
+    "musicVideos": {
+      "title": "Music Video",
+      "description": "Official music videos and visualizers",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "thumbnailUrl": { "type": "string" },
+        "youtubeUrl": { "type": "string" },
+        "description": { "type": "string" },
+        "releaseDate": { "type": "string" },
+        "featured": { "type": "boolean" }
+      },
+      "required": ["title", "youtubeUrl"]
+    },
+    "photos": {
+      "title": "Photography Gallery",
+      "description": "Curated editorial, press, and live performance photographs",
+      "type": "object",
+      "properties": {
+        "imageUrl": { "type": "string" },
+        "caption": { "type": "string" },
+        "category": { "type": "string" },
+        "date": { "type": "string" },
+        "featured": { "type": "boolean" }
+      },
+      "required": ["imageUrl", "category"]
+    },
+    "socialLinks": {
+      "title": "Social Profiles",
+      "description": "Configurable official streaming and social media profiles",
+      "type": "object",
+      "properties": {
+        "spotify": { "type": "string" },
+        "youtube": { "type": "string" },
+        "instagram": { "type": "string" },
+        "tiktok": { "type": "string" },
+        "facebook": { "type": "string" },
+        "x": { "type": "string" },
+        "appleMusic": { "type": "string" },
+        "youtubeMusic": { "type": "string" }
+      }
+    },
+    "siteSettings": {
+      "title": "SEO & Site Configuration",
+      "description": "Global metadata, title, meta description, and keywords",
+      "type": "object",
+      "properties": {
+        "websiteTitle": { "type": "string" },
+        "metaDescription": { "type": "string" },
+        "ogImageUrl": { "type": "string" },
+        "keywords": { "type": "string" },
+        "canonicalUrl": { "type": "string" }
+      }
+    }
+  }
+}

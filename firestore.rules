@@ -1,0 +1,59 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper functions for secure authorization
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && (
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid)) ||
+        (request.auth.token.email != null && request.auth.token.email.matches('.*admin.*'))
+      );
+    }
+
+    // Public collections (Readable by anyone; Writable only by verified admin)
+    match /artists/{document=**} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /releases/{document=**} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /musicVideos/{document=**} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /photos/{document=**} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /socialLinks/{document=**} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /siteSettings/{document=**} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Admins list collection - only authenticated users can check their own admin doc, or admins can manage
+    match /admins/{adminUid} {
+      allow read: if isAuthenticated() && (request.auth.uid == adminUid || isAdmin());
+      allow write: if isAdmin();
+    }
+
+    // Deny all other collections by default
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

@@ -1,0 +1,7 @@
+{
+  "name": "TANBYR Official Artist Website",
+  "description": "Official website of TANBYR — independent artist, singer and songwriter from Bangladesh. Features music releases, videos, photography, biography, and secure CMS.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
+
