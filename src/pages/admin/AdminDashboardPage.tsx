@@ -16,6 +16,7 @@ import {
   ExternalLink,
   ShieldCheck,
   Eye,
+  Lock,
   ArrowLeft,
   Sparkles,
   HelpCircle,
@@ -384,9 +385,18 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
             <button
               onClick={onExitToPublic}
               className="inline-flex items-center space-x-2 px-4 py-2 rounded-full border border-white/20 bg-white/5 hover:bg-white hover:text-black text-white text-xs font-semibold tracking-wider uppercase transition-colors cursor-pointer"
+              title="Lock admin session and return to public website"
             >
               <Eye className="w-3.5 h-3.5" />
               <span>Preview Website</span>
+            </button>
+            <button
+              onClick={handleLogout}
+              className="inline-flex items-center space-x-2 px-4 py-2 rounded-full border border-red-500/30 bg-red-500/10 hover:bg-red-500 hover:text-white text-red-300 text-xs font-semibold tracking-wider uppercase transition-colors cursor-pointer"
+              title="Lock admin panel immediately"
+            >
+              <Lock className="w-3.5 h-3.5" />
+              <span>Lock Admin</span>
             </button>
           </div>
         </div>

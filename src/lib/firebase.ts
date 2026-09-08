@@ -43,6 +43,8 @@ import {
   initialSiteSettings
 } from './seedData';
 
+import { verifyAdminPassword } from './cryptoUtils';
+
 // Configuration loaded from provisioned firebase-applet-config.json with environment fallback
 const appletCfg: Record<string, any> = (typeof firebaseAppletConfig === 'object' && firebaseAppletConfig !== null)
   ? firebaseAppletConfig
@@ -126,10 +128,12 @@ function getLocalItem<T>(key: string, fallback: T): T {
   }
 }
 
-function setLocalItem<T>(key: string, data: T): void {
+function setLocalItem<T>(key: string, data: T, emitEvent = false): void {
   try {
     localStorage.setItem(key, JSON.stringify(data));
-    window.dispatchEvent(new Event('tanbyr_data_updated'));
+    if (emitEvent) {
+      window.dispatchEvent(new Event('tanbyr_data_updated'));
+    }
   } catch (e) {
     console.error('Failed to save to local state:', e);
   }
@@ -141,34 +145,17 @@ function setLocalItem<T>(key: string, data: T): void {
 
 // ARTIST PROFILE
 export async function getArtistProfile(): Promise<ArtistProfile> {
-  const sanitizeArtist = (data: Partial<ArtistProfile> | null | undefined): ArtistProfile => {
-    const merged = { ...initialArtistProfile, ...(data || {}) };
-    if (merged.location === 'Dhaka, Bangladesh' || merged.location === 'Dhaka') {
-      merged.location = '';
-    }
-    if (merged.country === 'Bangladesh') {
-      merged.country = '';
-    }
-    if (!merged.activeSince || merged.activeSince === '2024') {
-      merged.activeSince = '2026';
-    }
-    if (!merged.genre || merged.genre === 'Contemporary Bengali Indie / Singer-Songwriter' || merged.genre === 'Contemporary Bengali Indie & Soul' || merged.genre === 'Bengali Indie / Pop') {
-      merged.genre = '#Banglapop';
-    }
-    return merged;
-  };
-
   if (db) {
     try {
       const docRef = doc(db, 'artists', 'profile');
       const snap = await getDoc(docRef);
       if (snap.exists() && snap.data()) {
-        const remote = sanitizeArtist(snap.data() as ArtistProfile);
-        setLocalItem(STORAGE_KEYS.ARTIST, remote);
+        const remote = { ...initialArtistProfile, ...(snap.data() as ArtistProfile) };
+        setLocalItem(STORAGE_KEYS.ARTIST, remote, false);
         return remote;
       }
       // Seed to Firestore if not present yet
-      const initial = sanitizeArtist(initialArtistProfile);
+      const initial = initialArtistProfile;
       try {
         await setDoc(docRef, {
           ...cleanFirestoreData(initial),
@@ -184,11 +171,10 @@ export async function getArtistProfile(): Promise<ArtistProfile> {
     }
   }
   const local = getLocalItem<ArtistProfile>(STORAGE_KEYS.ARTIST, initialArtistProfile);
-  return sanitizeArtist(local);
+  return { ...initialArtistProfile, ...(local || {}) };
 }
 
 export async function updateArtistProfile(profile: ArtistProfile): Promise<void> {
-  setLocalItem(STORAGE_KEYS.ARTIST, profile);
   if (db) {
     try {
       const docRef = doc(db, 'artists', 'profile');
@@ -202,6 +188,7 @@ export async function updateArtistProfile(profile: ArtistProfile): Promise<void>
       throw err;
     }
   }
+  setLocalItem(STORAGE_KEYS.ARTIST, profile, true);
 }
 
 // RELEASES
@@ -216,7 +203,7 @@ export async function getReleases(): Promise<MusicRelease[]> {
           id: doc.id,
           ...doc.data()
         })) as MusicRelease[];
-        setLocalItem(STORAGE_KEYS.RELEASES, items);
+        setLocalItem(STORAGE_KEYS.RELEASES, items, false);
         return items;
       }
       // Seed initial releases if Firestore collection is empty
@@ -240,16 +227,6 @@ export async function getReleases(): Promise<MusicRelease[]> {
 }
 
 export async function saveRelease(release: MusicRelease): Promise<void> {
-  const current = getLocalItem<MusicRelease[]>(STORAGE_KEYS.RELEASES, initialReleases);
-  const exists = current.findIndex(r => r.id === release.id);
-  let updated: MusicRelease[];
-  if (exists >= 0) {
-    updated = current.map(r => r.id === release.id ? release : r);
-  } else {
-    updated = [release, ...current];
-  }
-  setLocalItem(STORAGE_KEYS.RELEASES, updated);
-
   if (db) {
     try {
       const docRef = doc(db, 'releases', release.id);
@@ -263,12 +240,18 @@ export async function saveRelease(release: MusicRelease): Promise<void> {
       throw err;
     }
   }
+  const current = getLocalItem<MusicRelease[]>(STORAGE_KEYS.RELEASES, initialReleases);
+  const exists = current.findIndex(r => r.id === release.id);
+  let updated: MusicRelease[];
+  if (exists >= 0) {
+    updated = current.map(r => r.id === release.id ? release : r);
+  } else {
+    updated = [release, ...current];
+  }
+  setLocalItem(STORAGE_KEYS.RELEASES, updated, true);
 }
 
 export async function deleteRelease(id: string): Promise<void> {
-  const current = getLocalItem<MusicRelease[]>(STORAGE_KEYS.RELEASES, initialReleases);
-  setLocalItem(STORAGE_KEYS.RELEASES, current.filter(r => r.id !== id));
-
   if (db) {
     try {
       await deleteDoc(doc(db, 'releases', id));
@@ -278,6 +261,8 @@ export async function deleteRelease(id: string): Promise<void> {
       throw err;
     }
   }
+  const current = getLocalItem<MusicRelease[]>(STORAGE_KEYS.RELEASES, initialReleases);
+  setLocalItem(STORAGE_KEYS.RELEASES, current.filter(r => r.id !== id), true);
 }
 
 // MUSIC VIDEOS
@@ -292,7 +277,7 @@ export async function getMusicVideos(): Promise<MusicVideo[]> {
           id: doc.id,
           ...doc.data()
         })) as MusicVideo[];
-        setLocalItem(STORAGE_KEYS.VIDEOS, items);
+        setLocalItem(STORAGE_KEYS.VIDEOS, items, false);
         return items;
       }
       // Seed initial videos if Firestore is empty
@@ -315,11 +300,6 @@ export async function getMusicVideos(): Promise<MusicVideo[]> {
 }
 
 export async function saveMusicVideo(video: MusicVideo): Promise<void> {
-  const current = getLocalItem<MusicVideo[]>(STORAGE_KEYS.VIDEOS, initialMusicVideos);
-  const exists = current.findIndex(v => v.id === video.id);
-  const updated = exists >= 0 ? current.map(v => v.id === video.id ? video : v) : [video, ...current];
-  setLocalItem(STORAGE_KEYS.VIDEOS, updated);
-
   if (db) {
     try {
       const docRef = doc(db, 'musicVideos', video.id);
@@ -333,12 +313,13 @@ export async function saveMusicVideo(video: MusicVideo): Promise<void> {
       throw err;
     }
   }
+  const current = getLocalItem<MusicVideo[]>(STORAGE_KEYS.VIDEOS, initialMusicVideos);
+  const exists = current.findIndex(v => v.id === video.id);
+  const updated = exists >= 0 ? current.map(v => v.id === video.id ? video : v) : [video, ...current];
+  setLocalItem(STORAGE_KEYS.VIDEOS, updated, true);
 }
 
 export async function deleteMusicVideo(id: string): Promise<void> {
-  const current = getLocalItem<MusicVideo[]>(STORAGE_KEYS.VIDEOS, initialMusicVideos);
-  setLocalItem(STORAGE_KEYS.VIDEOS, current.filter(v => v.id !== id));
-
   if (db) {
     try {
       await deleteDoc(doc(db, 'musicVideos', id));
@@ -348,6 +329,8 @@ export async function deleteMusicVideo(id: string): Promise<void> {
       throw err;
     }
   }
+  const current = getLocalItem<MusicVideo[]>(STORAGE_KEYS.VIDEOS, initialMusicVideos);
+  setLocalItem(STORAGE_KEYS.VIDEOS, current.filter(v => v.id !== id), true);
 }
 
 // PHOTOS
@@ -362,7 +345,7 @@ export async function getPhotos(): Promise<PhotoItem[]> {
           id: doc.id,
           ...doc.data()
         })) as PhotoItem[];
-        setLocalItem(STORAGE_KEYS.PHOTOS, items);
+        setLocalItem(STORAGE_KEYS.PHOTOS, items, false);
         return items;
       }
       // Seed initial photos if Firestore is empty
@@ -385,11 +368,6 @@ export async function getPhotos(): Promise<PhotoItem[]> {
 }
 
 export async function savePhoto(photo: PhotoItem): Promise<void> {
-  const current = getLocalItem<PhotoItem[]>(STORAGE_KEYS.PHOTOS, initialPhotos);
-  const exists = current.findIndex(p => p.id === photo.id);
-  const updated = exists >= 0 ? current.map(p => p.id === photo.id ? photo : p) : [photo, ...current];
-  setLocalItem(STORAGE_KEYS.PHOTOS, updated);
-
   if (db) {
     try {
       const docRef = doc(db, 'photos', photo.id);
@@ -403,12 +381,13 @@ export async function savePhoto(photo: PhotoItem): Promise<void> {
       throw err;
     }
   }
+  const current = getLocalItem<PhotoItem[]>(STORAGE_KEYS.PHOTOS, initialPhotos);
+  const exists = current.findIndex(p => p.id === photo.id);
+  const updated = exists >= 0 ? current.map(p => p.id === photo.id ? photo : p) : [photo, ...current];
+  setLocalItem(STORAGE_KEYS.PHOTOS, updated, true);
 }
 
 export async function deletePhoto(id: string): Promise<void> {
-  const current = getLocalItem<PhotoItem[]>(STORAGE_KEYS.PHOTOS, initialPhotos);
-  setLocalItem(STORAGE_KEYS.PHOTOS, current.filter(p => p.id !== id));
-
   if (db) {
     try {
       await deleteDoc(doc(db, 'photos', id));
@@ -418,6 +397,8 @@ export async function deletePhoto(id: string): Promise<void> {
       throw err;
     }
   }
+  const current = getLocalItem<PhotoItem[]>(STORAGE_KEYS.PHOTOS, initialPhotos);
+  setLocalItem(STORAGE_KEYS.PHOTOS, current.filter(p => p.id !== id), true);
 }
 
 // SOCIAL LINKS
@@ -428,7 +409,7 @@ export async function getSocialLinks(): Promise<SocialLinks> {
       const snap = await getDoc(docRef);
       if (snap.exists() && snap.data()) {
         const remote = { ...initialSocialLinks, ...(snap.data() as SocialLinks) };
-        setLocalItem(STORAGE_KEYS.SOCIAL, remote);
+        setLocalItem(STORAGE_KEYS.SOCIAL, remote, false);
         return remote;
       }
       // Seed default social links to Firestore
@@ -450,7 +431,6 @@ export async function getSocialLinks(): Promise<SocialLinks> {
 }
 
 export async function updateSocialLinks(links: SocialLinks): Promise<void> {
-  setLocalItem(STORAGE_KEYS.SOCIAL, links);
   if (db) {
     try {
       const docRef = doc(db, 'socialLinks', 'default');
@@ -464,6 +444,7 @@ export async function updateSocialLinks(links: SocialLinks): Promise<void> {
       throw err;
     }
   }
+  setLocalItem(STORAGE_KEYS.SOCIAL, links, true);
 }
 
 // SITE SETTINGS / SEO
@@ -474,7 +455,7 @@ export async function getSiteSettings(): Promise<SiteSettings> {
       const snap = await getDoc(docRef);
       if (snap.exists() && snap.data()) {
         const remote = { ...initialSiteSettings, ...(snap.data() as SiteSettings) };
-        setLocalItem(STORAGE_KEYS.SETTINGS, remote);
+        setLocalItem(STORAGE_KEYS.SETTINGS, remote, false);
         return remote;
       }
       // Seed default SEO settings to Firestore
@@ -496,7 +477,6 @@ export async function getSiteSettings(): Promise<SiteSettings> {
 }
 
 export async function updateSiteSettings(settings: SiteSettings): Promise<void> {
-  setLocalItem(STORAGE_KEYS.SETTINGS, settings);
   if (db) {
     try {
       const docRef = doc(db, 'siteSettings', 'seo');
@@ -510,6 +490,7 @@ export async function updateSiteSettings(settings: SiteSettings): Promise<void> 
       throw err;
     }
   }
+  setLocalItem(STORAGE_KEYS.SETTINGS, settings, true);
 }
 
 // -------------------------------------------------------------
@@ -556,33 +537,33 @@ export async function checkIsAuthorizedAdmin(user: User | null): Promise<boolean
 // The password remains completely private and is never stored in plaintext
 const DEFAULT_ADMIN_HASH = '950fd8f02b5eb8659aaf461616b6e20be5ea56089a3e2155a3bf493dbc10a4b1';
 
-async function computeSha256(text: string): Promise<string> {
-  const enc = new TextEncoder();
-  const data = enc.encode(text);
-  const buffer = await crypto.subtle.digest('SHA-256', data);
-  const hashArray = Array.from(new Uint8Array(buffer));
-  return hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
-}
-
 /**
  * Validates the admin unlock password using cryptographic SHA-256 matching.
  * Keeps the master password private without storing plaintext in source code.
+ * Requires the user to enter the authorized password to unlock the admin panel.
  */
 export async function unlockAdminWithPassword(
   inputPassword: string
 ): Promise<{ success: boolean; error?: string }> {
-  if (!inputPassword) {
+  const cleanInput = (inputPassword || '').trim();
+  if (!cleanInput) {
     return { success: false, error: 'Please enter the admin password.' };
   }
 
   try {
-    const inputHash = await computeSha256(inputPassword);
     const targetHash = (
       import.meta.env.VITE_ADMIN_PASSWORD_HASH || DEFAULT_ADMIN_HASH
     ).toLowerCase();
 
-    if (inputHash.toLowerCase() === targetHash) {
-      localStorage.setItem(STORAGE_KEYS.DEMO_AUTH, 'true');
+    const isMatch = await verifyAdminPassword(cleanInput, targetHash);
+
+    if (isMatch) {
+      sessionStorage.setItem('tanbyr_admin_session_unlocked', 'true');
+      try {
+        localStorage.removeItem(STORAGE_KEYS.DEMO_AUTH);
+      } catch {
+        // ignore
+      }
       window.dispatchEvent(new Event('tanbyr_auth_changed'));
       return { success: true };
     }
@@ -594,8 +575,20 @@ export async function unlockAdminWithPassword(
   }
 }
 
-export async function loginWithCredentials(email: string, password: string): Promise<{ success: boolean; error?: string; isAuthorized?: boolean }> {
-  // If Firebase Auth is ready and configured
+export function lockAdminSession(): void {
+  try {
+    sessionStorage.removeItem('tanbyr_admin_session_unlocked');
+    localStorage.removeItem(STORAGE_KEYS.DEMO_AUTH);
+  } catch {
+    // ignore
+  }
+  window.dispatchEvent(new Event('tanbyr_auth_changed'));
+}
+
+export async function loginWithCredentials(
+  email: string,
+  password: string
+): Promise<{ success: boolean; error?: string; isAuthorized?: boolean }> {
   if (auth) {
     try {
       const cred = await signInWithEmailAndPassword(auth, email, password);
@@ -604,16 +597,24 @@ export async function loginWithCredentials(email: string, password: string): Pro
         return {
           success: false,
           isAuthorized: false,
-          error: 'Access Denied: Your account is authenticated, but your UID is not authorized to manage TANBYR Official Website.'
+          error:
+            'Access Denied: Your account is authenticated, but your UID is not authorized to manage TANBYR Official Website.',
         };
       }
+      sessionStorage.setItem('tanbyr_admin_session_unlocked', 'true');
+      window.dispatchEvent(new Event('tanbyr_auth_changed'));
       return { success: true, isAuthorized: true };
     } catch (err: any) {
       let message = 'Invalid admin credentials.';
-      if (err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
+      if (
+        err.code === 'auth/user-not-found' ||
+        err.code === 'auth/wrong-password' ||
+        err.code === 'auth/invalid-credential'
+      ) {
         message = 'Invalid email or password.';
       } else if (err.code === 'auth/too-many-requests') {
-        message = 'Access temporarily restricted due to multiple failed attempts. Please try again shortly.';
+        message =
+          'Access temporarily restricted due to multiple failed attempts. Please try again shortly.';
       } else if (err.message) {
         message = err.message;
       }
@@ -621,25 +622,11 @@ export async function loginWithCredentials(email: string, password: string): Pro
     }
   }
 
-  // Fallback demo authentication for preview environment
-  // Allows testing the admin UI prior to user configuring real Firebase credentials
-  const cleanEmail = email.trim().toLowerCase();
-  if (cleanEmail.includes('admin') || cleanEmail.includes('tanbyr') || cleanEmail.includes('tanbir') || cleanEmail.includes('@') || password.length >= 4) {
-    localStorage.setItem(STORAGE_KEYS.DEMO_AUTH, 'true');
-    window.dispatchEvent(new Event('tanbyr_auth_changed'));
-    return { success: true, isAuthorized: true };
-  } else {
-    // Default allow for seamless preview testing
-    localStorage.setItem(STORAGE_KEYS.DEMO_AUTH, 'true');
-    window.dispatchEvent(new Event('tanbyr_auth_changed'));
-    return { success: true, isAuthorized: true };
-  }
-}
-
-export function loginDemoAdmin(): { success: boolean; isAuthorized: boolean } {
-  localStorage.setItem(STORAGE_KEYS.DEMO_AUTH, 'true');
-  window.dispatchEvent(new Event('tanbyr_auth_changed'));
-  return { success: true, isAuthorized: true };
+  // If Firebase Auth is not configured, direct the user to password unlock
+  return {
+    success: false,
+    error: 'Please use the Master Password to unlock the Admin CMS.',
+  };
 }
 
 export async function logoutUser(): Promise<void> {
@@ -650,49 +637,52 @@ export async function logoutUser(): Promise<void> {
       console.error('Sign out error:', e);
     }
   }
-  localStorage.removeItem(STORAGE_KEYS.DEMO_AUTH);
-  window.dispatchEvent(new Event('tanbyr_auth_changed'));
+  lockAdminSession();
 }
 
 export function subscribeToAuth(callback: (state: AuthState) => void): () => void {
-  if (auth) {
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-      if (firebaseUser) {
-        const isAdmin = await checkIsAuthorizedAdmin(firebaseUser);
-        callback({
-          user: firebaseUser,
-          isAdmin,
-          loading: false,
-          isDemoAuth: false,
-        });
-      } else {
-        const demoAuth = localStorage.getItem(STORAGE_KEYS.DEMO_AUTH) === 'true';
-        callback({
-          user: null,
-          isAdmin: demoAuth,
-          loading: false,
-          isDemoAuth: demoAuth,
-        });
-      }
-    });
-    return unsubscribe;
+  // Purge any legacy persistent localStorage auth on initialization to prevent auto-login
+  try {
+    localStorage.removeItem(STORAGE_KEYS.DEMO_AUTH);
+  } catch {
+    // ignore
   }
 
-  // Local fallback listener
-  const checkDemo = () => {
-    const isDemo = localStorage.getItem(STORAGE_KEYS.DEMO_AUTH) === 'true';
+  const checkStatus = () => {
+    // Admin access strictly requires an active session unlock via Master Password
+    const isUnlocked = sessionStorage.getItem('tanbyr_admin_session_unlocked') === 'true';
+
     callback({
-      user: null,
-      isAdmin: isDemo,
+      user: auth?.currentUser || null,
+      isAdmin: isUnlocked,
       loading: false,
-      isDemoAuth: isDemo,
+      isDemoAuth: isUnlocked,
     });
   };
 
-  window.addEventListener('tanbyr_auth_changed', checkDemo);
-  checkDemo();
+  if (auth) {
+    const unsubscribe = onAuthStateChanged(auth, () => {
+      checkStatus();
+    });
+
+    const handleCustomEvent = () => {
+      checkStatus();
+    };
+    window.addEventListener('tanbyr_auth_changed', handleCustomEvent);
+
+    return () => {
+      unsubscribe();
+      window.removeEventListener('tanbyr_auth_changed', handleCustomEvent);
+    };
+  }
+
+  const handleCustomEvent = () => {
+    checkStatus();
+  };
+  window.addEventListener('tanbyr_auth_changed', handleCustomEvent);
+  checkStatus();
 
   return () => {
-    window.removeEventListener('tanbyr_auth_changed', checkDemo);
+    window.removeEventListener('tanbyr_auth_changed', handleCustomEvent);
   };
 }

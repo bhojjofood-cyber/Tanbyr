@@ -40,6 +40,7 @@ import {
   getSocialLinks,
   getSiteSettings,
   subscribeToAuth,
+  lockAdminSession,
   AuthState,
 } from './lib/firebase';
 
@@ -234,8 +235,14 @@ export default function App() {
           socials={socials}
           settings={settings}
           onRefreshData={loadAppData}
-          onExitToPublic={() => navigate('/')}
-          onLogout={() => navigate('/admin')}
+          onExitToPublic={() => {
+            lockAdminSession();
+            navigate('/');
+          }}
+          onLogout={() => {
+            lockAdminSession();
+            navigate('/admin');
+          }}
         />
       );
     }
@@ -243,8 +250,19 @@ export default function App() {
     // Otherwise render secure login
     return (
       <AdminLoginPage
-        onLoginSuccess={() => navigate('/admin')}
-        onExitToPublic={() => navigate('/')}
+        onLoginSuccess={() => {
+          setAuthState({
+            user: null,
+            isAdmin: true,
+            loading: false,
+            isDemoAuth: true,
+          });
+          navigate('/admin');
+        }}
+        onExitToPublic={() => {
+          lockAdminSession();
+          navigate('/');
+        }}
       />
     );
   }
