@@ -19,9 +19,17 @@ export const initialReleases: MusicRelease[] = [
     id: 'rel-jabonare-2026',
     title: 'Jabonare',
     type: 'Single',
+    slug: 'jabonare',
     releaseDate: '2026-09-15',
     coverImage: 'https://images.unsplash.com/photo-1614613535308-eb5fbd3d2c17?auto=format&fit=crop&w=1000&q=80',
     description: 'An atmospheric indie ballad that captures quiet melancholia, poetic surrender, and heartfelt acoustic warmth.',
+    streamingPlatforms: [
+      { id: 'sp-1', platform: 'spotify', label: 'Spotify', url: 'https://open.spotify.com/artist/placeholder-tanbyr', actionText: 'Listen' },
+      { id: 'am-1', platform: 'appleMusic', label: 'Apple Music', url: 'https://music.apple.com/artist/placeholder-tanbyr', actionText: 'Listen' },
+      { id: 'ym-1', platform: 'youtubeMusic', label: 'YouTube Music', url: 'https://music.youtube.com/search?q=tanbyr+jabonare', actionText: 'Listen' },
+      { id: 'yt-1', platform: 'youtube', label: 'YouTube Video', url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ', actionText: 'Watch' },
+      { id: 'az-1', platform: 'amazonMusic', label: 'Amazon Music', url: 'https://music.amazon.com/search/tanbyr+jabonare', actionText: 'Stream' },
+    ],
     spotifyUrl: 'https://open.spotify.com/artist/placeholder-tanbyr',
     youtubeUrl: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
     youtubeMusicUrl: 'https://music.youtube.com/search?q=tanbyr+jabonare',
@@ -156,6 +164,14 @@ export const initialPhotos: PhotoItem[] = [
 ];
 
 export const initialSocialLinks: SocialLinks = {
+  customLinks: [
+    { id: 'soc-instagram', platform: 'instagram', label: 'Instagram', url: 'https://instagram.com/tanbyrmusic', enabled: true },
+    { id: 'soc-spotify', platform: 'spotify', label: 'Spotify', url: 'https://open.spotify.com/artist/tanbyr-official', enabled: true },
+    { id: 'soc-youtube', platform: 'youtube', label: 'YouTube', url: 'https://youtube.com/@tanbyrmusic', enabled: true },
+    { id: 'soc-appleMusic', platform: 'appleMusic', label: 'Apple Music', url: 'https://music.apple.com/artist/tanbyr', enabled: true },
+    { id: 'soc-facebook', platform: 'facebook', label: 'Facebook', url: 'https://facebook.com/tanbyrmusic', enabled: true },
+    { id: 'soc-tiktok', platform: 'tiktok', label: 'TikTok', url: 'https://tiktok.com/@tanbyrmusic', enabled: true },
+  ],
   spotify: 'https://open.spotify.com/artist/tanbyr-official',
   youtube: 'https://youtube.com/@tanbyrmusic',
   instagram: 'https://instagram.com/tanbyrmusic',

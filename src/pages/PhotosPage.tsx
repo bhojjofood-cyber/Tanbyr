@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { PhotoItem } from '../types';
 import { Camera, Calendar, Tag, Maximize2 } from 'lucide-react';
 import { ScrollReveal } from '../components/ScrollReveal';
+import { SmartImage } from '../components/SmartImage';
 
 interface PhotosPageProps {
   photos: PhotoItem[];
@@ -70,15 +71,18 @@ export const PhotosPage: React.FC<PhotosPageProps> = ({ photos, onSelectPhoto })
                 onClick={() => onSelectPhoto(photo)}
                 className="group relative rounded-2xl overflow-hidden bg-neutral-900 border border-white/10 hover:border-white/30 transition-all duration-500 cursor-pointer shadow-lg aspect-[4/5]"
               >
-                <img
+                <SmartImage
+                  key={photo.imageUrl || photo.id}
                   src={photo.imageUrl}
                   alt={photo.caption || 'TANBYR Photography'}
+                  fallbackType="photo"
+                  fallbackText={photo.caption || photo.category}
+                  containerClassName="w-full h-full"
                   className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 ease-out"
-                  loading="lazy"
                 />
 
                 {/* Gradient Overlay */}
-                <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-between p-6">
+                <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-between p-6 z-20 pointer-events-none">
                   <div className="flex justify-end">
                     <div className="p-2 rounded-full bg-black/50 text-white backdrop-blur-md">
                       <Maximize2 className="w-4 h-4" />

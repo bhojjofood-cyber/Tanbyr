@@ -10,6 +10,22 @@ export interface ArtistProfile {
   activeSince: string;
 }
 
+export interface CustomSocialLink {
+  id: string;
+  platform: string; // 'instagram' | 'spotify' | 'youtube' | 'facebook' | 'tiktok' | 'x' | 'appleMusic' | 'youtubeMusic' | 'soundcloud' | 'bandcamp' | 'threads' | 'whatsapp' | 'discord' | 'custom';
+  label: string;
+  url: string;
+  enabled?: boolean;
+}
+
+export interface StreamingPlatformLink {
+  id: string;
+  platform: string; // 'spotify' | 'appleMusic' | 'youtubeMusic' | 'youtube' | 'amazonMusic' | 'deezer' | 'tidal' | 'soundcloud' | 'bandcamp' | 'jiosaavn' | 'audiomack' | 'custom';
+  label: string;
+  url: string;
+  actionText?: string; // 'Listen' | 'Play' | 'Stream' | 'Watch' | 'Buy';
+}
+
 export interface MusicRelease {
   id: string;
   title: string;
@@ -17,6 +33,9 @@ export interface MusicRelease {
   releaseDate: string;
   coverImage: string;
   description: string;
+  slug?: string;
+  // Available streaming platforms added dynamically via (+) Plus icon:
+  streamingPlatforms?: StreamingPlatformLink[];
   spotifyUrl?: string;
   youtubeUrl?: string;
   youtubeMusicUrl?: string;
@@ -55,6 +74,7 @@ export interface PhotoItem {
 }
 
 export interface SocialLinks {
+  customLinks?: CustomSocialLink[];
   spotify?: string;
   youtube?: string;
   instagram?: string;

@@ -3,6 +3,7 @@ import { ArtistProfile, SocialLinks } from '../types';
 import { MapPin, Globe, Music, Calendar, Sparkles, Radio } from 'lucide-react';
 import { ScrollReveal } from '../components/ScrollReveal';
 import { SocialIcons } from '../components/SocialIcons';
+import { SmartImage } from '../components/SmartImage';
 
 interface AboutPageProps {
   artist: ArtistProfile;
@@ -32,13 +33,18 @@ export const AboutPage: React.FC<AboutPageProps> = ({ artist, socials }) => {
         <div className="lg:col-span-5 space-y-8">
           <ScrollReveal direction="left" distance={30} delay={0.1}>
             <div className="relative aspect-[3/4] rounded-3xl overflow-hidden bg-neutral-900 border border-white/10 shadow-2xl group">
-              <img
-                src={artist.profileImageUrl || 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?auto=format&fit=crop&w=1200&q=80'}
+              <SmartImage
+                key={artist.profileImageUrl || 'profile-fallback'}
+                src={artist.profileImageUrl}
                 alt={`${artist.name} Portrait`}
+                priority={true}
+                fallbackType="profile"
+                fallbackText={artist.name}
+                containerClassName="w-full h-full"
                 className="w-full h-full object-cover object-top filter contrast-[1.05]"
               />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent pointer-events-none" />
-              <div className="absolute bottom-6 left-6 right-6">
+              <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent pointer-events-none z-20" />
+              <div className="absolute bottom-6 left-6 right-6 z-20">
                 <span className="text-xl font-bold tracking-[0.2em] text-white uppercase block">
                   {artist.name}
                 </span>

@@ -401,6 +401,24 @@ export async function deletePhoto(id: string): Promise<void> {
   setLocalItem(STORAGE_KEYS.PHOTOS, current.filter(p => p.id !== id), true);
 }
 
+export async function clearDemoPhotos(): Promise<void> {
+  const demoIds = ['photo-1', 'photo-2', 'photo-3', 'photo-4', 'photo-5', 'photo-6'];
+  if (db) {
+    try {
+      for (const id of demoIds) {
+        try {
+          await deleteDoc(doc(db, 'photos', id));
+        } catch {}
+      }
+    } catch (err) {
+      console.warn('Notice clearing demo photos from Firestore:', err);
+    }
+  }
+  const current = getLocalItem<PhotoItem[]>(STORAGE_KEYS.PHOTOS, []);
+  const remaining = current.filter(p => !demoIds.includes(p.id));
+  setLocalItem(STORAGE_KEYS.PHOTOS, remaining, true);
+}
+
 // SOCIAL LINKS
 export async function getSocialLinks(): Promise<SocialLinks> {
   if (db) {

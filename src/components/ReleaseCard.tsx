@@ -1,6 +1,8 @@
 import React from 'react';
-import { Play, FileText, Music2, ExternalLink } from 'lucide-react';
+import { FileText, ExternalLink, Share2, Disc } from 'lucide-react';
 import { MusicRelease } from '../types';
+import { SmartImage } from './SmartImage';
+import { BrandIcon, getBrandMeta } from './BrandLogos';
 
 interface ReleaseCardProps {
   release: MusicRelease;
@@ -16,13 +18,29 @@ export const ReleaseCard: React.FC<ReleaseCardProps> = ({
     ? new Date(release.releaseDate).getFullYear() || release.releaseDate
     : '2026';
 
-  const streamingLinks = [
-    { name: 'Spotify', url: release.spotifyUrl, color: 'hover:border-emerald-500/50 hover:text-emerald-400' },
-    { name: 'Apple Music', url: release.appleMusicUrl, color: 'hover:border-pink-500/50 hover:text-pink-400' },
-    { name: 'YouTube', url: release.youtubeUrl, color: 'hover:border-red-500/50 hover:text-red-400' },
-    { name: 'YouTube Music', url: release.youtubeMusicUrl, color: 'hover:border-red-400/50 hover:text-red-300' },
-    { name: 'Stream / Download', url: release.otherUrl, color: 'hover:border-white/50 hover:text-white' },
-  ].filter((link) => Boolean(link.url && link.url.trim() !== '' && link.url !== '#'));
+  // Prefer dynamic streamingPlatforms array; fall back to legacy links
+  const dynamicLinks =
+    release.streamingPlatforms && release.streamingPlatforms.length > 0
+      ? release.streamingPlatforms
+          .filter((p) => Boolean(p.url && p.url.trim() !== '' && p.url !== '#'))
+          .map((p) => {
+            const meta = getBrandMeta(p.platform);
+            return {
+              platform: p.platform,
+              name: p.label || meta.name,
+              url: p.url,
+              color: 'hover:border-white/40 hover:text-white',
+            };
+          })
+      : [
+          { platform: 'spotify', name: 'Spotify', url: release.spotifyUrl, color: 'hover:border-emerald-500/50 hover:text-emerald-400' },
+          { platform: 'appleMusic', name: 'Apple Music', url: release.appleMusicUrl, color: 'hover:border-pink-500/50 hover:text-pink-400' },
+          { platform: 'youtube', name: 'YouTube', url: release.youtubeUrl, color: 'hover:border-red-500/50 hover:text-red-400' },
+          { platform: 'youtubeMusic', name: 'YouTube Music', url: release.youtubeMusicUrl, color: 'hover:border-red-400/50 hover:text-red-300' },
+          { platform: 'bandcamp', name: 'Stores', url: release.otherUrl, color: 'hover:border-white/50 hover:text-white' },
+        ].filter((link) => Boolean(link.url && link.url.trim() !== '' && link.url !== '#'));
+
+  const releaseSmartLinkUrl = `/#/release/${release.slug || release.id}`;
 
   return (
     <div
@@ -32,15 +50,18 @@ export const ReleaseCard: React.FC<ReleaseCardProps> = ({
       <div>
         {/* Cover Artwork with hover zoom */}
         <div className="relative aspect-square w-full overflow-hidden bg-neutral-900">
-          <img
-            src={release.coverImage || 'https://images.unsplash.com/photo-1614613535308-eb5fbd3d2c17?auto=format&fit=crop&w=800&q=80'}
+          <SmartImage
+            key={release.coverImage || release.id}
+            src={release.coverImage}
             alt={`${release.title} Cover Artwork`}
+            fallbackType="artwork"
+            fallbackText={release.title}
+            containerClassName="w-full h-full"
             className="w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-700 ease-out"
-            loading="lazy"
           />
 
           {/* Badges */}
-          <div className="absolute top-4 left-4 flex flex-wrap gap-2">
+          <div className="absolute top-4 left-4 flex flex-wrap gap-2 z-20">
             <span className="px-3 py-1 rounded-full text-[10px] font-bold tracking-[0.2em] uppercase bg-black/70 backdrop-blur-md text-white border border-white/10">
               {release.type}
             </span>
@@ -69,20 +90,31 @@ export const ReleaseCard: React.FC<ReleaseCardProps> = ({
             </p>
           )}
 
-          {/* Streaming Platform Pill Buttons */}
+          {/* Streaming Platform Pill Buttons with Authentic Brand Logos */}
           <div className="flex flex-wrap gap-2 pt-2">
-            {streamingLinks.map((link) => (
+            {dynamicLinks.map((link) => (
               <a
-                key={link.name}
+                key={link.platform + link.name}
                 href={link.url}
                 target="_blank"
                 rel="noopener noreferrer"
                 className={`inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-full text-xs font-medium tracking-wider uppercase border border-white/10 bg-white/[0.03] text-neutral-300 transition-all duration-300 ${link.color}`}
               >
+                <BrandIcon platform={link.platform} className="w-3.5 h-3.5" />
                 <span>{link.name}</span>
-                <ExternalLink className="w-3 h-3 opacity-60" />
+                <ExternalLink className="w-2.5 h-2.5 opacity-50" />
               </a>
             ))}
+
+            {/* Smart Landing Page button */}
+            <a
+              href={releaseSmartLinkUrl}
+              className="inline-flex items-center space-x-1 px-3 py-1.5 rounded-full text-xs font-bold tracking-wider uppercase bg-white/10 hover:bg-white/20 text-white transition-colors"
+              title="Open Smart Link Landing Page"
+            >
+              <Share2 className="w-3 h-3 text-pink-400" />
+              <span>Smart Link</span>
+            </a>
           </div>
         </div>
       </div>

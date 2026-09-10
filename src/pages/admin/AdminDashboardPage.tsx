@@ -30,6 +30,8 @@ import {
   PhotoItem,
   SocialLinks,
   SiteSettings,
+  CustomSocialLink,
+  StreamingPlatformLink,
 } from '../../types';
 import {
   updateArtistProfile,
@@ -39,6 +41,7 @@ import {
   deleteMusicVideo,
   savePhoto,
   deletePhoto,
+  clearDemoPhotos,
   updateSocialLinks,
   updateSiteSettings,
   logoutUser,
@@ -46,6 +49,9 @@ import {
   AUTHORIZED_ADMIN_UID,
 } from '../../lib/firebase';
 import { initialSocialLinks } from '../../lib/seedData';
+import { ImageUploader } from '../../components/ImageUploader';
+import { SocialLinksManager } from '../../components/SocialLinksManager';
+import { StreamingPlatformsManager } from '../../components/StreamingPlatformsManager';
 
 interface AdminDashboardPageProps {
   artist: ArtistProfile;
@@ -90,12 +96,32 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
   const [socialForm, setSocialForm] = useState<SocialLinks>({ ...initialSocialLinks, ...(socials || {}) });
   const [seoForm, setSeoForm] = useState<SiteSettings>({ ...settings });
 
+  // Dynamic Social Links state (powered by Plus icon + brand logos)
+  const [customSocials, setCustomSocials] = useState<CustomSocialLink[]>(() => {
+    if (socials?.customLinks && Array.isArray(socials.customLinks) && socials.customLinks.length > 0) {
+      return socials.customLinks;
+    }
+    const source = socials || initialSocialLinks;
+    const defaultList: CustomSocialLink[] = [];
+    if (source.instagram) defaultList.push({ id: 'init-ig', platform: 'instagram', label: 'Instagram', url: source.instagram, enabled: true });
+    if (source.spotify) defaultList.push({ id: 'init-sp', platform: 'spotify', label: 'Spotify', url: source.spotify, enabled: true });
+    if (source.youtube) defaultList.push({ id: 'init-yt', platform: 'youtube', label: 'YouTube', url: source.youtube, enabled: true });
+    if (source.appleMusic) defaultList.push({ id: 'init-am', platform: 'appleMusic', label: 'Apple Music', url: source.appleMusic, enabled: true });
+    if (source.tiktok) defaultList.push({ id: 'init-tt', platform: 'tiktok', label: 'TikTok', url: source.tiktok, enabled: true });
+    if (source.facebook) defaultList.push({ id: 'init-fb', platform: 'facebook', label: 'Facebook', url: source.facebook, enabled: true });
+    if (source.x) defaultList.push({ id: 'init-x', platform: 'x', label: 'X (Twitter)', url: source.x, enabled: true });
+    return defaultList;
+  });
+
   useEffect(() => {
     setProfileForm({ ...artist });
   }, [artist]);
 
   useEffect(() => {
     setSocialForm({ ...initialSocialLinks, ...(socials || {}) });
+    if (socials?.customLinks && Array.isArray(socials.customLinks) && socials.customLinks.length > 0) {
+      setCustomSocials(socials.customLinks);
+    }
   }, [socials]);
 
   useEffect(() => {
@@ -119,6 +145,15 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
     setTimeout(() => setToastMessage(null), 4000);
   };
 
+  const handleCopyReleaseBioLink = (rel: MusicRelease) => {
+    const slug = rel.slug || rel.id;
+    const url = `${window.location.origin}/#/release/${slug}`;
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(url);
+    }
+    showToast(`Instagram bio link copied: /#/release/${slug}`);
+  };
+
   // Profile Save
   const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -134,12 +169,30 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
     }
   };
 
-  // Socials Save
+  // Socials Save (dynamic customLinks + legacy backwards compatibility)
   const handleSaveSocials = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSaving(true);
     try {
-      await updateSocialLinks(socialForm);
+      const payload: SocialLinks = {
+        ...socialForm,
+        customLinks: customSocials,
+      };
+
+      // Keep legacy keys populated for backward compatibility with external widgets
+      customSocials.forEach((c) => {
+        if (c.enabled && c.url) {
+          if (c.platform === 'spotify') payload.spotify = c.url;
+          if (c.platform === 'instagram') payload.instagram = c.url;
+          if (c.platform === 'youtube') payload.youtube = c.url;
+          if (c.platform === 'appleMusic') payload.appleMusic = c.url;
+          if (c.platform === 'tiktok') payload.tiktok = c.url;
+          if (c.platform === 'facebook') payload.facebook = c.url;
+          if (c.platform === 'x') payload.x = c.url;
+        }
+      });
+
+      await updateSocialLinks(payload);
       await onRefreshData();
       showToast('Social profiles saved successfully.');
     } catch (err: any) {
@@ -170,11 +223,37 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
     if (!editingRelease || !editingRelease.title.trim()) return;
     setIsSaving(true);
     try {
-      await saveRelease(editingRelease);
+      const slug =
+        editingRelease.slug ||
+        editingRelease.title
+          .toLowerCase()
+          .replace(/[^\w\s-]/g, '')
+          .replace(/[\s_-]+/g, '-')
+          .replace(/^-+|-+$/g, '') ||
+        editingRelease.id;
+
+      const updatedRelease: MusicRelease = {
+        ...editingRelease,
+        slug,
+      };
+
+      // Mirror back to legacy URLs if dynamic platforms are used
+      if (updatedRelease.streamingPlatforms && updatedRelease.streamingPlatforms.length > 0) {
+        const sp = updatedRelease.streamingPlatforms.find((p) => p.platform === 'spotify');
+        if (sp) updatedRelease.spotifyUrl = sp.url;
+        const am = updatedRelease.streamingPlatforms.find((p) => p.platform === 'appleMusic');
+        if (am) updatedRelease.appleMusicUrl = am.url;
+        const ym = updatedRelease.streamingPlatforms.find((p) => p.platform === 'youtubeMusic');
+        if (ym) updatedRelease.youtubeMusicUrl = ym.url;
+        const yt = updatedRelease.streamingPlatforms.find((p) => p.platform === 'youtube');
+        if (yt) updatedRelease.youtubeUrl = yt.url;
+      }
+
+      await saveRelease(updatedRelease);
       await onRefreshData();
       setIsReleaseModalOpen(false);
       setEditingRelease(null);
-      showToast(`Release "${editingRelease.title}" saved.`);
+      showToast(`Release "${updatedRelease.title}" saved.`);
     } catch (err: any) {
       showToast(`Failed to save release: ${err.message}`);
     } finally {
@@ -248,6 +327,20 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
       showToast('Photograph deleted.');
     } catch (err: any) {
       showToast(`Delete failed: ${err.message}`);
+    }
+  };
+
+  const handleClearDemoPhotos = async () => {
+    if (!window.confirm('Remove all demo stock photos? Only your own uploaded photographs will remain in the gallery.')) return;
+    setIsSaving(true);
+    try {
+      await clearDemoPhotos();
+      await onRefreshData();
+      showToast('Demo stock photos removed.');
+    } catch (err: any) {
+      showToast(`Notice: ${err.message}`);
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -646,61 +739,29 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
               </div>
             </div>
 
-            {/* Profile & Hero Image URLs with live preview */}
+            {/* Profile & Hero Image Uploaders with instant live preview */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4 border-t border-white/5">
-              <div>
-                <label className="block text-xs font-semibold uppercase tracking-wider text-neutral-400 mb-2">
-                  Profile Portrait Image URL
-                </label>
-                <input
-                  type="url"
-                  value={profileForm.profileImageUrl}
-                  onChange={(e) =>
-                    setProfileForm({ ...profileForm, profileImageUrl: e.target.value })
-                  }
-                  placeholder="https://..."
-                  className="w-full px-4 py-2.5 rounded-xl bg-[#0c0c10] border border-white/10 text-white text-sm focus:outline-none focus:border-white/30 mb-3"
-                />
-                {profileForm.profileImageUrl && (
-                  <div className="relative aspect-[3/4] w-36 rounded-xl overflow-hidden border border-white/10 bg-neutral-900">
-                    <img
-                      src={profileForm.profileImageUrl}
-                      alt="Profile preview"
-                      className="w-full h-full object-cover"
-                      onError={(e) => {
-                        (e.target as HTMLElement).style.display = 'none';
-                      }}
-                    />
-                  </div>
-                )}
-              </div>
+              <ImageUploader
+                label="Profile Portrait Picture"
+                value={profileForm.profileImageUrl || ''}
+                onChange={(url) =>
+                  setProfileForm({ ...profileForm, profileImageUrl: url })
+                }
+                aspectRatio="portrait"
+                placeholder="https://... or upload photo"
+                helperText="Upload an image from your device or paste a URL. Displayed on the About page and bio."
+              />
 
-              <div>
-                <label className="block text-xs font-semibold uppercase tracking-wider text-neutral-400 mb-2">
-                  Hero Background Image URL
-                </label>
-                <input
-                  type="url"
-                  value={profileForm.heroImageUrl}
-                  onChange={(e) =>
-                    setProfileForm({ ...profileForm, heroImageUrl: e.target.value })
-                  }
-                  placeholder="https://..."
-                  className="w-full px-4 py-2.5 rounded-xl bg-[#0c0c10] border border-white/10 text-white text-sm focus:outline-none focus:border-white/30 mb-3"
-                />
-                {profileForm.heroImageUrl && (
-                  <div className="relative aspect-video w-full max-w-sm rounded-xl overflow-hidden border border-white/10 bg-neutral-900">
-                    <img
-                      src={profileForm.heroImageUrl}
-                      alt="Hero preview"
-                      className="w-full h-full object-cover"
-                      onError={(e) => {
-                        (e.target as HTMLElement).style.display = 'none';
-                      }}
-                    />
-                  </div>
-                )}
-              </div>
+              <ImageUploader
+                label="Hero Background Banner"
+                value={profileForm.heroImageUrl || ''}
+                onChange={(url) =>
+                  setProfileForm({ ...profileForm, heroImageUrl: url })
+                }
+                aspectRatio="banner"
+                placeholder="https://... or upload banner"
+                helperText="Upload a widescreen image or paste a URL. Displayed across the full-width Hero section."
+              />
             </div>
 
             {/* Biography */}
@@ -741,10 +802,17 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                     id: `rel-${Date.now()}`,
                     title: '',
                     type: 'Single',
+                    slug: '',
                     releaseDate: new Date().toISOString().split('T')[0],
                     coverImage: '',
                     description: '',
                     featured: false,
+                    streamingPlatforms: [
+                      { id: `sp-${Date.now()}-1`, platform: 'spotify', label: 'Spotify', url: '', actionText: 'Listen' },
+                      { id: `sp-${Date.now()}-2`, platform: 'appleMusic', label: 'Apple Music', url: '', actionText: 'Listen' },
+                      { id: `sp-${Date.now()}-3`, platform: 'youtubeMusic', label: 'YouTube Music', url: '', actionText: 'Listen' },
+                      { id: `sp-${Date.now()}-4`, platform: 'youtube', label: 'YouTube Video', url: '', actionText: 'Watch' },
+                    ],
                     spotifyUrl: '',
                     youtubeUrl: '',
                     appleMusicUrl: '',
@@ -763,53 +831,95 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
               {releases.map((rel) => (
                 <div
                   key={rel.id}
-                  className="bg-[#0c0c10] border border-white/10 rounded-2xl p-5 flex items-start space-x-4 relative group"
+                  className="bg-[#0c0c10] border border-white/10 rounded-2xl p-5 flex flex-col justify-between relative group"
                 >
-                  <img
-                    src={rel.coverImage || 'https://images.unsplash.com/photo-1614613535308-eb5fbd3d2c17?auto=format&fit=crop&w=400&q=80'}
-                    alt={rel.title}
-                    className="w-20 h-20 rounded-xl object-cover border border-white/10 shrink-0"
-                  />
-                  <div className="flex-1 min-w-0 pr-12">
-                    <div className="flex items-center space-x-2">
-                      <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded bg-white/10 text-white">
-                        {rel.type}
-                      </span>
-                      {rel.featured && (
-                        <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded bg-amber-400/20 text-amber-300">
-                          Featured
+                  <div className="flex items-start space-x-4">
+                    <img
+                      src={rel.coverImage || 'https://images.unsplash.com/photo-1614613535308-eb5fbd3d2c17?auto=format&fit=crop&w=400&q=80'}
+                      alt={rel.title}
+                      className="w-20 h-20 rounded-xl object-cover border border-white/10 shrink-0"
+                    />
+                    <div className="flex-1 min-w-0 pr-12">
+                      <div className="flex items-center space-x-2">
+                        <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded bg-white/10 text-white">
+                          {rel.type}
                         </span>
-                      )}
+                        {rel.featured && (
+                          <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded bg-amber-400/20 text-amber-300">
+                            Featured
+                          </span>
+                        )}
+                      </div>
+                      <h4 className="text-base font-bold text-white uppercase mt-1 truncate">
+                        {rel.title}
+                      </h4>
+                      <p className="text-xs text-neutral-400 mt-0.5">
+                        {rel.releaseDate}
+                      </p>
+                      <p className="text-xs text-neutral-400 line-clamp-1 mt-1 font-light">
+                        {rel.description || 'No description'}
+                      </p>
                     </div>
-                    <h4 className="text-base font-bold text-white uppercase mt-1 truncate">
-                      {rel.title}
-                    </h4>
-                    <p className="text-xs text-neutral-400 mt-0.5">
-                      {rel.releaseDate}
-                    </p>
-                    <p className="text-xs text-neutral-400 line-clamp-1 mt-1 font-light">
-                      {rel.description || 'No description'}
-                    </p>
+
+                    <div className="absolute top-4 right-4 flex items-center space-x-1">
+                      <button
+                        onClick={() => {
+                          let platforms = rel.streamingPlatforms ? [...rel.streamingPlatforms] : [];
+                          if (platforms.length === 0) {
+                            if (rel.spotifyUrl) platforms.push({ id: `sp-${Date.now()}-1`, platform: 'spotify', label: 'Spotify', url: rel.spotifyUrl, actionText: 'Listen' });
+                            if (rel.appleMusicUrl) platforms.push({ id: `sp-${Date.now()}-2`, platform: 'appleMusic', label: 'Apple Music', url: rel.appleMusicUrl, actionText: 'Listen' });
+                            if (rel.youtubeMusicUrl) platforms.push({ id: `sp-${Date.now()}-3`, platform: 'youtubeMusic', label: 'YouTube Music', url: rel.youtubeMusicUrl, actionText: 'Listen' });
+                            if (rel.youtubeUrl) platforms.push({ id: `sp-${Date.now()}-4`, platform: 'youtube', label: 'YouTube Video', url: rel.youtubeUrl, actionText: 'Watch' });
+                            if (rel.otherUrl) platforms.push({ id: `sp-${Date.now()}-5`, platform: 'bandcamp', label: 'Stores', url: rel.otherUrl, actionText: 'Buy' });
+                          }
+                          setEditingRelease({
+                            ...rel,
+                            streamingPlatforms: platforms,
+                          });
+                          setIsReleaseModalOpen(true);
+                        }}
+                        className="p-1.5 rounded-lg text-neutral-400 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+                        title="Edit release"
+                      >
+                        <Edit2 className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => handleDeleteRelease(rel.id, rel.title)}
+                        className="p-1.5 rounded-lg text-neutral-400 hover:text-red-400 hover:bg-red-500/10 transition-colors cursor-pointer"
+                        title="Delete release"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
                   </div>
 
-                  <div className="absolute top-4 right-4 flex items-center space-x-1">
-                    <button
-                      onClick={() => {
-                        setEditingRelease(rel);
-                        setIsReleaseModalOpen(true);
-                      }}
-                      className="p-1.5 rounded-lg text-neutral-400 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
-                      title="Edit release"
-                    >
-                      <Edit2 className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={() => handleDeleteRelease(rel.id, rel.title)}
-                      className="p-1.5 rounded-lg text-neutral-400 hover:text-red-400 hover:bg-red-500/10 transition-colors cursor-pointer"
-                      title="Delete release"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
+                  {/* Smart Link Quick Share (Instagram Bio Link & Preview) */}
+                  <div className="mt-4 pt-3 border-t border-white/10 flex flex-wrap items-center justify-between gap-2">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">
+                      Instagram Bio Smart Link:
+                    </span>
+                    <div className="flex items-center space-x-2">
+                      <button
+                        type="button"
+                        onClick={() => handleCopyReleaseBioLink(rel)}
+                        className="inline-flex items-center space-x-1.5 px-2.5 py-1.5 rounded-lg bg-pink-500/10 hover:bg-pink-500/20 border border-pink-500/30 text-pink-300 hover:text-pink-200 text-xs font-semibold transition-colors cursor-pointer"
+                        title="Copy link to paste into Instagram bio"
+                      >
+                        <Copy className="w-3.5 h-3.5 text-pink-400" />
+                        <span>Copy Bio Link</span>
+                      </button>
+
+                      <a
+                        href={`/#/release/${rel.slug || rel.id}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center space-x-1 px-2.5 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 border border-white/15 text-white text-xs font-bold uppercase tracking-wider transition-colors cursor-pointer"
+                        title="Preview the standalone Smart Landing Page"
+                      >
+                        <span>Open Page</span>
+                        <ExternalLink className="w-3 h-3" />
+                      </a>
+                    </div>
                   </div>
                 </div>
               ))}
@@ -905,27 +1015,47 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
         {/* ---------------------------------------------------- */}
         {activeTab === 'photos' && (
           <div className="space-y-6">
-            <div className="flex justify-between items-center">
-              <p className="text-xs text-neutral-400 uppercase tracking-wider">
-                Showing {photos.length} photos
-              </p>
-              <button
-                onClick={() => {
-                  setEditingPhoto({
-                    id: `photo-${Date.now()}`,
-                    imageUrl: '',
-                    caption: '',
-                    category: 'Press',
-                    date: new Date().toISOString().split('T')[0],
-                    featured: false,
-                  });
-                  setIsPhotoModalOpen(true);
-                }}
-                className="inline-flex items-center space-x-2 px-5 py-2.5 rounded-xl bg-white text-black font-bold text-xs tracking-wider uppercase hover:bg-neutral-200 transition-colors cursor-pointer"
-              >
-                <Plus className="w-4 h-4" />
-                <span>Add Photo URL</span>
-              </button>
+            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
+              <div>
+                <h3 className="text-sm font-bold text-white uppercase tracking-wider">
+                  Photo Gallery Management
+                </h3>
+                <p className="text-xs text-neutral-400 mt-0.5">
+                  Showing {photos.length} photograph{photos.length === 1 ? '' : 's'}
+                </p>
+              </div>
+
+              <div className="flex items-center space-x-2">
+                {photos.some((p) => ['photo-1', 'photo-2', 'photo-3', 'photo-4', 'photo-5', 'photo-6'].includes(p.id)) && (
+                  <button
+                    type="button"
+                    onClick={handleClearDemoPhotos}
+                    disabled={isSaving}
+                    className="inline-flex items-center space-x-1.5 px-3.5 py-2.5 rounded-xl border border-white/10 hover:border-red-500/40 bg-white/5 hover:bg-red-500/10 text-neutral-300 hover:text-red-400 text-xs font-semibold uppercase tracking-wider transition-colors cursor-pointer"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Clear Demo Photos</span>
+                  </button>
+                )}
+
+                <button
+                  onClick={() => {
+                    setEditingPhoto({
+                      id: `photo-${Date.now()}`,
+                      imageUrl: '',
+                      caption: '',
+                      category: 'Press',
+                      date: new Date().toISOString().split('T')[0],
+                      featured: false,
+                    });
+                    setIsPhotoModalOpen(true);
+                  }}
+                  className="inline-flex items-center space-x-2 px-5 py-2.5 rounded-xl bg-white text-black font-bold text-xs tracking-wider uppercase hover:bg-neutral-200 transition-colors cursor-pointer"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Upload / Add Photo</span>
+                </button>
+              </div>
             </div>
 
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
@@ -934,7 +1064,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                   key={p.id}
                   className="group relative rounded-xl overflow-hidden bg-neutral-900 border border-white/10 aspect-[4/5]"
                 >
-                  <img src={p.imageUrl} alt={p.caption} className="w-full h-full object-cover" />
+                  <img key={p.imageUrl} src={p.imageUrl} alt={p.caption} className="w-full h-full object-cover" />
                   <div className="absolute inset-0 bg-black/75 opacity-0 group-hover:opacity-100 transition-opacity p-3 flex flex-col justify-between">
                     <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded bg-white/20 text-white w-fit">
                       {p.category}
@@ -972,45 +1102,23 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
         {/* ---------------------------------------------------- */}
         {activeTab === 'social' && (
           <form onSubmit={handleSaveSocials} className="space-y-6">
-            <p className="text-xs text-neutral-400 uppercase tracking-wider">
-              Links left blank will automatically be hidden from the website footer.
-            </p>
+            <SocialLinksManager
+              links={customSocials}
+              onChange={(updated) => setCustomSocials(updated)}
+            />
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-              {[
-                { key: 'spotify', label: 'Spotify Profile URL' },
-                { key: 'appleMusic', label: 'Apple Music URL' },
-                { key: 'youtube', label: 'YouTube Channel URL' },
-                { key: 'youtubeMusic', label: 'YouTube Music URL' },
-                { key: 'instagram', label: 'Instagram Profile URL' },
-                { key: 'tiktok', label: 'TikTok Profile URL' },
-                { key: 'facebook', label: 'Facebook Page URL' },
-                { key: 'x', label: 'X (Twitter) Profile URL' },
-              ].map((item) => (
-                <div key={item.key}>
-                  <label className="block text-xs font-semibold uppercase tracking-wider text-neutral-400 mb-2">
-                    {item.label}
-                  </label>
-                  <input
-                    type="url"
-                    value={(socialForm as any)[item.key] || ''}
-                    onChange={(e) =>
-                      setSocialForm({ ...socialForm, [item.key]: e.target.value })
-                    }
-                    placeholder="https://..."
-                    className="w-full px-4 py-2.5 rounded-xl bg-[#0c0c10] border border-white/10 text-white text-sm focus:outline-none focus:border-white/30"
-                  />
-                </div>
-              ))}
+            <div className="pt-4 border-t border-white/10 flex items-center justify-between">
+              <p className="text-xs text-neutral-400 font-light">
+                Changes saved here will immediately update icons in the header and footer.
+              </p>
+              <button
+                type="submit"
+                disabled={isSaving}
+                className="px-8 py-3 rounded-xl bg-white text-black font-bold text-xs tracking-[0.2em] uppercase hover:bg-neutral-200 transition-colors cursor-pointer"
+              >
+                {isSaving ? 'Saving...' : 'Save Social Links'}
+              </button>
             </div>
-
-            <button
-              type="submit"
-              disabled={isSaving}
-              className="px-8 py-3 rounded-xl bg-white text-black font-bold text-xs tracking-[0.2em] uppercase hover:bg-neutral-200 transition-colors cursor-pointer"
-            >
-              {isSaving ? 'Saving...' : 'Save Social Links'}
-            </button>
           </form>
         )}
 
@@ -1071,26 +1179,14 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
               </div>
             </div>
 
-            <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-neutral-400 mb-2">
-                Open Graph Social Share Image URL
-              </label>
-              <input
-                type="url"
-                value={seoForm.ogImageUrl}
-                onChange={(e) => setSeoForm({ ...seoForm, ogImageUrl: e.target.value })}
-                className="w-full px-4 py-2.5 rounded-xl bg-[#0c0c10] border border-white/10 text-white text-sm focus:outline-none focus:border-white/30 mb-3"
-              />
-              {seoForm.ogImageUrl && (
-                <div className="relative aspect-[1200/630] w-72 rounded-xl overflow-hidden border border-white/10 bg-neutral-900">
-                  <img
-                    src={seoForm.ogImageUrl}
-                    alt="OG Share Preview"
-                    className="w-full h-full object-cover"
-                  />
-                </div>
-              )}
-            </div>
+            <ImageUploader
+              label="Open Graph Social Share Image (OG)"
+              value={seoForm.ogImageUrl || ''}
+              onChange={(url) => setSeoForm({ ...seoForm, ogImageUrl: url })}
+              aspectRatio="video"
+              placeholder="https://... or upload share image"
+              helperText="Preview image shown when links to this website are shared on Facebook, WhatsApp, X, and Discord."
+            />
 
             <button
               type="submit"
@@ -1275,35 +1371,17 @@ service cloud.firestore {
                 </div>
               </div>
 
-              {/* Cover Image URL with Live Preview */}
-              <div>
-                <label className="block text-xs font-semibold uppercase text-neutral-400 mb-1">
-                  Cover Artwork Image URL *
-                </label>
-                <input
-                  type="url"
-                  value={editingRelease.coverImage}
-                  onChange={(e) =>
-                    setEditingRelease({ ...editingRelease, coverImage: e.target.value })
-                  }
-                  placeholder="https://images.unsplash.com/..."
-                  required
-                  className="w-full px-4 py-2.5 rounded-xl bg-[#14141a] border border-white/10 text-white text-sm focus:outline-none focus:border-white/30"
-                />
-                {editingRelease.coverImage && (
-                  <div className="mt-2 flex items-center space-x-3">
-                    <img
-                      src={editingRelease.coverImage}
-                      alt="Cover preview"
-                      className="w-16 h-16 rounded-lg object-cover border border-white/10"
-                      onError={(e) => {
-                        (e.target as HTMLElement).style.display = 'none';
-                      }}
-                    />
-                    <span className="text-[11px] text-neutral-400">Artwork Preview</span>
-                  </div>
-                )}
-              </div>
+              {/* Cover Artwork Image with instant live preview */}
+              <ImageUploader
+                label="Cover Artwork"
+                value={editingRelease.coverImage || ''}
+                onChange={(url) =>
+                  setEditingRelease({ ...editingRelease, coverImage: url })
+                }
+                aspectRatio="square"
+                placeholder="https://... or upload artwork"
+                helperText="Upload a square cover artwork from your device or paste an image URL."
+              />
 
               <div>
                 <label className="block text-xs font-semibold uppercase text-neutral-400 mb-1">
@@ -1320,67 +1398,30 @@ service cloud.firestore {
                 />
               </div>
 
-              {/* Streaming Platform URLs */}
-              <div className="pt-2 border-t border-white/10">
-                <span className="block text-xs font-bold uppercase tracking-wider text-neutral-400 mb-3">
-                  Streaming Platform URLs
-                </span>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <input
-                    type="url"
-                    value={editingRelease.spotifyUrl || ''}
-                    onChange={(e) =>
-                      setEditingRelease({ ...editingRelease, spotifyUrl: e.target.value })
-                    }
-                    placeholder="Spotify URL"
-                    className="w-full px-3.5 py-2 rounded-xl bg-[#14141a] border border-white/10 text-xs text-white"
-                  />
-                  <input
-                    type="url"
-                    value={editingRelease.appleMusicUrl || ''}
-                    onChange={(e) =>
-                      setEditingRelease({ ...editingRelease, appleMusicUrl: e.target.value })
-                    }
-                    placeholder="Apple Music URL"
-                    className="w-full px-3.5 py-2 rounded-xl bg-[#14141a] border border-white/10 text-xs text-white"
-                  />
-                  <input
-                    type="url"
-                    value={editingRelease.youtubeUrl || ''}
-                    onChange={(e) =>
-                      setEditingRelease({ ...editingRelease, youtubeUrl: e.target.value })
-                    }
-                    placeholder="YouTube URL"
-                    className="w-full px-3.5 py-2 rounded-xl bg-[#14141a] border border-white/10 text-xs text-white"
-                  />
-                  <input
-                    type="url"
-                    value={editingRelease.youtubeMusicUrl || ''}
-                    onChange={(e) =>
-                      setEditingRelease({ ...editingRelease, youtubeMusicUrl: e.target.value })
-                    }
-                    placeholder="YouTube Music URL"
-                    className="w-full px-3.5 py-2 rounded-xl bg-[#14141a] border border-white/10 text-xs text-white"
-                  />
-                  <input
-                    type="url"
-                    value={editingRelease.otherUrl || ''}
-                    onChange={(e) =>
-                      setEditingRelease({ ...editingRelease, otherUrl: e.target.value })
-                    }
-                    placeholder="Other Streaming / Download URL"
-                    className="w-full px-3.5 py-2 rounded-xl bg-[#14141a] border border-white/10 text-xs text-white"
-                  />
-                  <input
-                    type="url"
-                    value={editingRelease.lyricsUrl || ''}
-                    onChange={(e) =>
-                      setEditingRelease({ ...editingRelease, lyricsUrl: e.target.value })
-                    }
-                    placeholder="External Lyrics / Chord URL"
-                    className="w-full px-3.5 py-2 rounded-xl bg-[#14141a] border border-white/10 text-xs text-white"
-                  />
-                </div>
+              {/* Streaming Platform URLs with (+) Add Button & Authentic Brand Logos */}
+              <StreamingPlatformsManager
+                platforms={editingRelease.streamingPlatforms || []}
+                onChange={(updatedPlatforms) =>
+                  setEditingRelease({
+                    ...editingRelease,
+                    streamingPlatforms: updatedPlatforms,
+                  })
+                }
+              />
+
+              <div>
+                <label className="block text-xs font-semibold uppercase text-neutral-400 mb-1">
+                  External Lyrics / Chord URL (Optional)
+                </label>
+                <input
+                  type="url"
+                  value={editingRelease.lyricsUrl || ''}
+                  onChange={(e) =>
+                    setEditingRelease({ ...editingRelease, lyricsUrl: e.target.value })
+                  }
+                  placeholder="https://..."
+                  className="w-full px-3.5 py-2 rounded-xl bg-[#14141a] border border-white/10 text-xs text-white"
+                />
               </div>
 
               {/* Lyrics & Credits */}
@@ -1478,30 +1519,17 @@ service cloud.firestore {
                 />
               </div>
 
-              <div>
-                <label className="block text-xs font-semibold uppercase text-neutral-400 mb-1">
-                  Thumbnail Image URL *
-                </label>
-                <input
-                  type="url"
-                  value={editingVideo.thumbnailUrl}
-                  onChange={(e) =>
-                    setEditingVideo({ ...editingVideo, thumbnailUrl: e.target.value })
-                  }
-                  required
-                  placeholder="https://images.unsplash.com/..."
-                  className="w-full px-4 py-2.5 rounded-xl bg-[#14141a] border border-white/10 text-white text-sm focus:outline-none focus:border-white/30"
-                />
-                {editingVideo.thumbnailUrl && (
-                  <div className="mt-2 aspect-video w-36 rounded-lg overflow-hidden border border-white/10 bg-black">
-                    <img
-                      src={editingVideo.thumbnailUrl}
-                      alt="Thumbnail preview"
-                      className="w-full h-full object-cover"
-                    />
-                  </div>
-                )}
-              </div>
+              {/* Video Thumbnail with instant live preview */}
+              <ImageUploader
+                label="Video Thumbnail Image"
+                value={editingVideo.thumbnailUrl || ''}
+                onChange={(url) =>
+                  setEditingVideo({ ...editingVideo, thumbnailUrl: url })
+                }
+                aspectRatio="video"
+                placeholder="https://... or upload thumbnail"
+                helperText="Upload a video thumbnail image or paste a link (e.g. YouTube maxresdefault)."
+              />
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
@@ -1583,30 +1611,17 @@ service cloud.firestore {
             </h3>
 
             <form onSubmit={handleSavePhotoForm} className="space-y-4">
-              <div>
-                <label className="block text-xs font-semibold uppercase text-neutral-400 mb-1">
-                  Image URL *
-                </label>
-                <input
-                  type="url"
-                  value={editingPhoto.imageUrl}
-                  onChange={(e) =>
-                    setEditingPhoto({ ...editingPhoto, imageUrl: e.target.value })
-                  }
-                  required
-                  placeholder="https://images.unsplash.com/..."
-                  className="w-full px-4 py-2.5 rounded-xl bg-[#14141a] border border-white/10 text-white text-sm focus:outline-none focus:border-white/30"
-                />
-                {editingPhoto.imageUrl && (
-                  <div className="mt-2 aspect-[4/5] w-28 rounded-lg overflow-hidden border border-white/10 bg-neutral-900">
-                    <img
-                      src={editingPhoto.imageUrl}
-                      alt="Photo preview"
-                      className="w-full h-full object-cover"
-                    />
-                  </div>
-                )}
-              </div>
+              {/* Photograph Image with instant live preview & local upload */}
+              <ImageUploader
+                label="Photograph Image"
+                value={editingPhoto.imageUrl || ''}
+                onChange={(url) =>
+                  setEditingPhoto({ ...editingPhoto, imageUrl: url })
+                }
+                aspectRatio="portrait"
+                placeholder="https://... or upload photo"
+                helperText="Upload a photo from your computer/mobile or paste an image URL."
+              />
 
               <div>
                 <label className="block text-xs font-semibold uppercase text-neutral-400 mb-1">

@@ -10,6 +10,7 @@ import { MusicPage } from './pages/MusicPage';
 import { VideosPage } from './pages/VideosPage';
 import { PhotosPage } from './pages/PhotosPage';
 import { AboutPage } from './pages/AboutPage';
+import { ReleaseSmartLinkPage } from './pages/ReleaseSmartLinkPage';
 
 import { AdminLoginPage } from './pages/admin/AdminLoginPage';
 import { AdminDashboardPage } from './pages/admin/AdminDashboardPage';
@@ -69,19 +70,47 @@ function getNormalizedPath(): string {
   return '/';
 }
 
+// Safe synchronous local storage retrieval to eliminate any flash of dummy/seed images
+function getInitialLocalState<T>(key: string, fallback: T): T {
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return fallback;
+    const parsed = JSON.parse(raw);
+    if (parsed === null || parsed === undefined) return fallback;
+    return parsed;
+  } catch {
+    return fallback;
+  }
+}
+
 export default function App() {
   // Navigation State
   const [currentPath, setCurrentPath] = useState<string>(() => {
     return getNormalizedPath();
   });
 
-  // Data State
-  const [artist, setArtist] = useState<ArtistProfile>(initialArtistProfile);
-  const [releases, setReleases] = useState<MusicRelease[]>(initialReleases);
-  const [videos, setVideos] = useState<MusicVideo[]>(initialMusicVideos);
-  const [photos, setPhotos] = useState<PhotoItem[]>(initialPhotos);
-  const [socials, setSocials] = useState<SocialLinks>(initialSocialLinks);
-  const [settings, setSettings] = useState<SiteSettings>(initialSiteSettings);
+  // Data State (Initialized synchronously from localStorage to eliminate any flash of dummy/seed images)
+  const [artist, setArtist] = useState<ArtistProfile>(() => {
+    const cached = getInitialLocalState<ArtistProfile>('tanbyr_artist_profile', initialArtistProfile);
+    return { ...initialArtistProfile, ...(cached || {}) };
+  });
+  const [releases, setReleases] = useState<MusicRelease[]>(() => {
+    return getInitialLocalState<MusicRelease[]>('tanbyr_music_releases', initialReleases);
+  });
+  const [videos, setVideos] = useState<MusicVideo[]>(() => {
+    return getInitialLocalState<MusicVideo[]>('tanbyr_music_videos', initialMusicVideos);
+  });
+  const [photos, setPhotos] = useState<PhotoItem[]>(() => {
+    return getInitialLocalState<PhotoItem[]>('tanbyr_photos', initialPhotos);
+  });
+  const [socials, setSocials] = useState<SocialLinks>(() => {
+    const cached = getInitialLocalState<SocialLinks>('tanbyr_social_links', initialSocialLinks);
+    return { ...initialSocialLinks, ...(cached || {}) };
+  });
+  const [settings, setSettings] = useState<SiteSettings>(() => {
+    const cached = getInitialLocalState<SiteSettings>('tanbyr_site_settings', initialSiteSettings);
+    return { ...initialSiteSettings, ...(cached || {}) };
+  });
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
   // Authentication State
@@ -268,8 +297,55 @@ export default function App() {
   }
 
   // -----------------------------------------------------------------
+  // DEDICATED RELEASE SMART LINK LANDING PAGE (/release/:slug)
+  // Perfect for Instagram Bio, YouTube descriptions, and fan link-in-bio
+  // -----------------------------------------------------------------
+  const isReleaseRoute = currentPath === '/release' || currentPath.startsWith('/release/');
+  if (isReleaseRoute) {
+    const rawParam = currentPath.replace(/^\/release\/?/, '').trim().toLowerCase();
+    const matchedRelease =
+      releases.find((r) => r.slug && r.slug.toLowerCase() === rawParam) ||
+      releases.find((r) => r.id.toLowerCase() === rawParam) ||
+      releases.find(
+        (r) =>
+          r.title
+            .toLowerCase()
+            .replace(/[^\w\s-]/g, '')
+            .replace(/[\s_-]+/g, '-') === rawParam
+      ) ||
+      latestRelease ||
+      releases[0];
+
+    if (matchedRelease) {
+      return (
+        <ReleaseSmartLinkPage
+          release={matchedRelease}
+          artist={artist}
+          onBackHome={() => navigate('/')}
+        />
+      );
+    }
+  }
+
+  // -----------------------------------------------------------------
   // PUBLIC WEBSITE
   // -----------------------------------------------------------------
+  // Branded initial loading screen: if initial fetch is running and no data is cached yet,
+  // show clean artist branding instead of ever flashing dummy / stock imagery
+  const hasCachedProfile = typeof window !== 'undefined' && Boolean(localStorage.getItem('tanbyr_artist_profile'));
+  if (isLoading && !hasCachedProfile && !isAdminRoute) {
+    return (
+      <div className="min-h-screen bg-[#070709] flex flex-col items-center justify-center text-white select-none">
+        <div className="flex flex-col items-center space-y-4">
+          <span className="text-3xl sm:text-4xl font-extrabold tracking-[0.35em] text-white uppercase animate-pulse">
+            TANBYR
+          </span>
+          <div className="w-7 h-7 rounded-full border-2 border-white/20 border-t-white animate-spin" />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen flex flex-col bg-[#070709] text-neutral-100 font-sans selection:bg-white selection:text-black">
       {/* Public Navbar */}

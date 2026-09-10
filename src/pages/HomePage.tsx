@@ -1,10 +1,12 @@
 import React from 'react';
 import { motion } from 'motion/react';
-import { Play, ArrowRight, Disc3, ExternalLink } from 'lucide-react';
+import { Play, ArrowRight, Disc3, ExternalLink, Share2 } from 'lucide-react';
 import { ArtistProfile, MusicRelease, MusicVideo, PhotoItem, SocialLinks } from '../types';
 import { VideoCard } from '../components/VideoCard';
 import { SocialIcons } from '../components/SocialIcons';
 import { ScrollReveal } from '../components/ScrollReveal';
+import { SmartImage } from '../components/SmartImage';
+import { BrandIcon, getBrandMeta } from '../components/BrandLogos';
 
 interface HomePageProps {
   artist: ArtistProfile;
@@ -39,19 +41,20 @@ export const HomePage: React.FC<HomePageProps> = ({
         className="relative min-h-[95vh] flex items-center justify-center overflow-hidden"
       >
         {/* Cinematic Artist Hero Background Image */}
-        <div className="absolute inset-0 z-0">
-          <motion.img
-            initial={{ scale: 1.15, opacity: 0.8 }}
-            animate={{ scale: 1.05, opacity: 1 }}
-            transition={{ duration: 1.8, ease: 'easeOut' }}
-            src={artist.heroImageUrl || 'https://images.unsplash.com/photo-1508700115892-45ecd05ae2ad?auto=format&fit=crop&w=1920&q=85'}
+        <div className="absolute inset-0 z-0 bg-[#070709]">
+          <SmartImage
+            key={artist.heroImageUrl || 'hero-fallback'}
+            src={artist.heroImageUrl}
             alt={`${artist.name} Hero`}
-            className="w-full h-full object-cover object-center filter brightness-[0.42] contrast-[1.1]"
-            loading="eager"
+            priority={true}
+            showSpinner={false}
+            fallbackType="hero"
+            containerClassName="w-full h-full"
+            className="w-full h-full object-cover object-center filter brightness-[0.45] contrast-[1.1]"
           />
           {/* Subtle multi-layer cinematic vignette & dark gradations */}
-          <div className="absolute inset-0 bg-gradient-to-t from-[#070709] via-[#070709]/60 to-transparent" />
-          <div className="absolute inset-0 bg-radial-at-c from-transparent via-[#070709]/40 to-[#070709]" />
+          <div className="absolute inset-0 bg-gradient-to-t from-[#070709] via-[#070709]/60 to-transparent pointer-events-none" />
+          <div className="absolute inset-0 bg-radial-at-c from-transparent via-[#070709]/40 to-[#070709] pointer-events-none" />
         </div>
 
         {/* Hero Content */}
@@ -164,14 +167,16 @@ export const HomePage: React.FC<HomePageProps> = ({
               <div className="bg-[#0e0e13] border border-white/10 rounded-3xl overflow-hidden p-6 sm:p-10 lg:p-12 shadow-2xl grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-14 items-center">
                 {/* Artwork */}
                 <div className="lg:col-span-5 relative aspect-square rounded-2xl overflow-hidden bg-black shadow-2xl group">
-                  <motion.img
-                    whileHover={{ scale: 1.05 }}
-                    transition={{ duration: 0.6 }}
-                    src={latestRelease.coverImage || 'https://images.unsplash.com/photo-1614613535308-eb5fbd3d2c17?auto=format&fit=crop&w=1000&q=80'}
+                  <SmartImage
+                    key={latestRelease.coverImage || latestRelease.id}
+                    src={latestRelease.coverImage}
                     alt={`${latestRelease.title} Cover`}
-                    className="w-full h-full object-cover"
+                    fallbackType="artwork"
+                    fallbackText={latestRelease.title}
+                    containerClassName="w-full h-full"
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 ease-out"
                   />
-                  <div className="absolute top-4 left-4">
+                  <div className="absolute top-4 left-4 z-20">
                     <span className="px-3 py-1 rounded-full text-[10px] font-bold tracking-[0.2em] uppercase bg-black/80 backdrop-blur-md text-white border border-white/20">
                       {latestRelease.type} &middot; {latestReleaseYear}
                     </span>
@@ -204,64 +209,99 @@ export const HomePage: React.FC<HomePageProps> = ({
                   {/* Streaming Links Buttons */}
                   <div className="pt-2">
                     <span className="text-xs font-semibold tracking-[0.25em] text-neutral-400 uppercase block mb-3">
-                      Stream / Download
+                      Stream &middot; Listen &middot; Download
                     </span>
                     <div className="flex flex-wrap gap-3">
-                      {latestRelease.spotifyUrl && (
-                        <a
-                          href={latestRelease.spotifyUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center space-x-2 px-5 py-3 rounded-full bg-emerald-500/10 hover:bg-emerald-500 text-emerald-400 hover:text-black border border-emerald-500/30 text-xs font-bold tracking-wider uppercase transition-all duration-300 cursor-pointer"
-                        >
-                          <span>Spotify</span>
-                          <ExternalLink className="w-3.5 h-3.5" />
-                        </a>
+                      {/* Dynamic Platforms (if populated) */}
+                      {latestRelease.streamingPlatforms && latestRelease.streamingPlatforms.length > 0 ? (
+                        latestRelease.streamingPlatforms
+                          .filter((p) => Boolean(p.url && p.url.trim() !== '' && p.url !== '#'))
+                          .map((p) => (
+                            <a
+                              key={p.id || p.platform}
+                              href={p.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center space-x-2 px-5 py-3 rounded-full bg-white/5 hover:bg-white text-white hover:text-black border border-white/20 text-xs font-bold tracking-wider uppercase transition-all duration-300 cursor-pointer"
+                            >
+                              <BrandIcon platform={p.platform} className="w-4 h-4" />
+                              <span>{p.label || getBrandMeta(p.platform).name}</span>
+                              <ExternalLink className="w-3 h-3 opacity-60" />
+                            </a>
+                          ))
+                      ) : (
+                        <>
+                          {latestRelease.spotifyUrl && (
+                            <a
+                              href={latestRelease.spotifyUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center space-x-2 px-5 py-3 rounded-full bg-emerald-500/10 hover:bg-emerald-500 text-emerald-400 hover:text-black border border-emerald-500/30 text-xs font-bold tracking-wider uppercase transition-all duration-300 cursor-pointer"
+                            >
+                              <BrandIcon platform="spotify" className="w-4 h-4" />
+                              <span>Spotify</span>
+                              <ExternalLink className="w-3.5 h-3.5" />
+                            </a>
+                          )}
+                          {latestRelease.appleMusicUrl && (
+                            <a
+                              href={latestRelease.appleMusicUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center space-x-2 px-5 py-3 rounded-full bg-pink-500/10 hover:bg-pink-500 text-pink-400 hover:text-black border border-pink-500/30 text-xs font-bold tracking-wider uppercase transition-all duration-300 cursor-pointer"
+                            >
+                              <BrandIcon platform="appleMusic" className="w-4 h-4" />
+                              <span>Apple Music</span>
+                              <ExternalLink className="w-3.5 h-3.5" />
+                            </a>
+                          )}
+                          {latestRelease.youtubeUrl && (
+                            <a
+                              href={latestRelease.youtubeUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center space-x-2 px-5 py-3 rounded-full bg-red-500/10 hover:bg-red-500 text-red-400 hover:text-white border border-red-500/30 text-xs font-bold tracking-wider uppercase transition-all duration-300 cursor-pointer"
+                            >
+                              <BrandIcon platform="youtube" className="w-4 h-4" />
+                              <span>YouTube</span>
+                              <ExternalLink className="w-3.5 h-3.5" />
+                            </a>
+                          )}
+                          {latestRelease.youtubeMusicUrl && (
+                            <a
+                              href={latestRelease.youtubeMusicUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center space-x-2 px-5 py-3 rounded-full bg-white/5 hover:bg-white text-white hover:text-black border border-white/20 text-xs font-bold tracking-wider uppercase transition-all duration-300 cursor-pointer"
+                            >
+                              <BrandIcon platform="youtubeMusic" className="w-4 h-4" />
+                              <span>YouTube Music</span>
+                              <ExternalLink className="w-3.5 h-3.5" />
+                            </a>
+                          )}
+                          {latestRelease.otherUrl && (
+                            <a
+                              href={latestRelease.otherUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center space-x-2 px-5 py-3 rounded-full bg-white/5 hover:bg-white text-white hover:text-black border border-white/20 text-xs font-bold tracking-wider uppercase transition-all duration-300 cursor-pointer"
+                            >
+                              <span>More Platforms</span>
+                              <ExternalLink className="w-3.5 h-3.5" />
+                            </a>
+                          )}
+                        </>
                       )}
-                      {latestRelease.appleMusicUrl && (
-                        <a
-                          href={latestRelease.appleMusicUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center space-x-2 px-5 py-3 rounded-full bg-pink-500/10 hover:bg-pink-500 text-pink-400 hover:text-black border border-pink-500/30 text-xs font-bold tracking-wider uppercase transition-all duration-300 cursor-pointer"
-                        >
-                          <span>Apple Music</span>
-                          <ExternalLink className="w-3.5 h-3.5" />
-                        </a>
-                      )}
-                      {latestRelease.youtubeUrl && (
-                        <a
-                          href={latestRelease.youtubeUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center space-x-2 px-5 py-3 rounded-full bg-red-500/10 hover:bg-red-500 text-red-400 hover:text-white border border-red-500/30 text-xs font-bold tracking-wider uppercase transition-all duration-300 cursor-pointer"
-                        >
-                          <span>YouTube</span>
-                          <ExternalLink className="w-3.5 h-3.5" />
-                        </a>
-                      )}
-                      {latestRelease.youtubeMusicUrl && (
-                        <a
-                          href={latestRelease.youtubeMusicUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center space-x-2 px-5 py-3 rounded-full bg-white/5 hover:bg-white text-white hover:text-black border border-white/20 text-xs font-bold tracking-wider uppercase transition-all duration-300 cursor-pointer"
-                        >
-                          <span>YouTube Music</span>
-                          <ExternalLink className="w-3.5 h-3.5" />
-                        </a>
-                      )}
-                      {latestRelease.otherUrl && (
-                        <a
-                          href={latestRelease.otherUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center space-x-2 px-5 py-3 rounded-full bg-white/5 hover:bg-white text-white hover:text-black border border-white/20 text-xs font-bold tracking-wider uppercase transition-all duration-300 cursor-pointer"
-                        >
-                          <span>More Platforms</span>
-                          <ExternalLink className="w-3.5 h-3.5" />
-                        </a>
-                      )}
+
+                      {/* Dedicated Smart Link Bio Landing Page */}
+                      <a
+                        href={`/#/release/${latestRelease.slug || latestRelease.id}`}
+                        className="inline-flex items-center space-x-2 px-5 py-3 rounded-full bg-pink-500/10 hover:bg-pink-500/20 text-pink-300 hover:text-white border border-pink-500/30 text-xs font-bold tracking-wider uppercase transition-all duration-300 cursor-pointer"
+                        title="Open Dedicated Smart Landing Page"
+                      >
+                        <Share2 className="w-3.5 h-3.5 text-pink-400" />
+                        <span>Smart Link Page</span>
+                      </a>
                     </div>
                   </div>
 
@@ -347,13 +387,16 @@ export const HomePage: React.FC<HomePageProps> = ({
                     onClick={() => onNavigate('/photos')}
                     className="group relative aspect-[4/5] rounded-2xl overflow-hidden bg-neutral-900 border border-white/10 cursor-pointer shadow-lg"
                   >
-                    <img
+                    <SmartImage
+                      key={photo.imageUrl || photo.id}
                       src={photo.imageUrl}
                       alt={photo.caption || 'TANBYR Photography'}
+                      fallbackType="photo"
+                      fallbackText={photo.caption || photo.category}
+                      containerClassName="w-full h-full"
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 ease-out"
-                      loading="lazy"
                     />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-end p-6">
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-end p-6 z-20 pointer-events-none">
                       <span className="text-[10px] tracking-widest text-neutral-400 uppercase font-semibold">
                         {photo.category}
                       </span>

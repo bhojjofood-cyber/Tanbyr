@@ -45,6 +45,7 @@ export const PhotoLightbox: React.FC<PhotoLightboxProps> = ({ photo, onClose }) 
         onClick={(e) => e.stopPropagation()}
       >
         <img
+          key={photo.imageUrl}
           src={photo.imageUrl}
           alt={photo.caption || 'TANBYR Photography'}
           className="max-h-[75vh] w-auto max-w-full object-contain rounded-lg shadow-2xl border border-white/10"
