@@ -34,9 +34,11 @@ export interface MusicRelease {
   coverImage: string;
   description: string;
   slug?: string;
+  smartUrl?: string; // Feature.fm, ffem.bio, ffm.bio or other all-in-one smart link
   // Available streaming platforms added dynamically via (+) Plus icon:
   streamingPlatforms?: StreamingPlatformLink[];
   spotifyUrl?: string;
+  previewAudioUrl?: string;
   youtubeUrl?: string;
   youtubeMusicUrl?: string;
   appleMusicUrl?: string;

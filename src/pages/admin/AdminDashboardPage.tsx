@@ -52,6 +52,11 @@ import { initialSocialLinks } from '../../lib/seedData';
 import { ImageUploader } from '../../components/ImageUploader';
 import { SocialLinksManager } from '../../components/SocialLinksManager';
 import { StreamingPlatformsManager } from '../../components/StreamingPlatformsManager';
+import { SpotifySyncModal } from '../../components/SpotifySyncModal';
+import { YouTubeSyncModal } from '../../components/YouTubeSyncModal';
+import { syncFromSpotify, syncFromYouTube, syncFromSmartLink } from '../../lib/mediaSyncClient';
+import { BrandLogos } from '../../components/BrandLogos';
+import { DeleteConfirmationModal } from '../../components/DeleteConfirmationModal';
 
 interface AdminDashboardPageProps {
   artist: ArtistProfile;
@@ -140,9 +145,161 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
   const [editingPhoto, setEditingPhoto] = useState<PhotoItem | null>(null);
   const [isPhotoModalOpen, setIsPhotoModalOpen] = useState(false);
 
+  // Spotify & YouTube Sync Modals state
+  const [isSpotifySyncOpen, setIsSpotifySyncOpen] = useState(false);
+  const [isYouTubeSyncOpen, setIsYouTubeSyncOpen] = useState(false);
+  const [quickSpotifyTrackUrl, setQuickSpotifyTrackUrl] = useState('');
+  const [isSyncingSingleSpotify, setIsSyncingSingleSpotify] = useState(false);
+  const [isSyncingSingleYouTube, setIsSyncingSingleYouTube] = useState(false);
+  const [isSyncingSmartLink, setIsSyncingSmartLink] = useState(false);
+  const [showAdvancedPlatforms, setShowAdvancedPlatforms] = useState(false);
+
+  // In-app Delete Confirmation state (replaces window.confirm which is blocked in iframes)
+  const [deleteTarget, setDeleteTarget] = useState<{
+    type: 'release' | 'video' | 'photo' | 'demoPhotos';
+    id: string;
+    title: string;
+  } | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
   const showToast = (msg: string) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 4000);
+  };
+
+  const handleImportSpotifyReleases = async (imported: MusicRelease[]) => {
+    setIsSaving(true);
+    try {
+      // Un-feature existing older releases
+      for (const r of releases) {
+        if (r.featured) {
+          await saveRelease({ ...r, featured: false });
+        }
+      }
+      // Save imported releases, marking the first/newest one as featured
+      for (let i = 0; i < imported.length; i++) {
+        const rel: MusicRelease = {
+          ...imported[i],
+          createdAt: new Date().toISOString(),
+          featured: i === 0, // First track becomes the Latest Release!
+        };
+        await saveRelease(rel);
+      }
+      await onRefreshData();
+      showToast(`Successfully imported ${imported.length} release(s) from Spotify! Latest Release updated.`);
+    } catch (err: any) {
+      showToast(`Import error: ${err.message}`);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleImportYouTubeVideos = async (imported: MusicVideo[]) => {
+    setIsSaving(true);
+    try {
+      for (const vid of imported) {
+        await saveMusicVideo(vid);
+      }
+      await onRefreshData();
+      showToast(`Successfully imported ${imported.length} video(s) from YouTube!`);
+    } catch (err: any) {
+      showToast(`Import error: ${err.message}`);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleQuickFetchSingleSpotify = async () => {
+    if (!quickSpotifyTrackUrl.trim() || !editingRelease) return;
+    setIsSyncingSingleSpotify(true);
+    try {
+      const res = await syncFromSpotify(quickSpotifyTrackUrl.trim());
+      if (res.success && res.releases.length > 0) {
+        const item = res.releases[0];
+        setEditingRelease({
+          ...editingRelease,
+          title: item.title || editingRelease.title,
+          type: item.type || editingRelease.type,
+          releaseDate: item.releaseDate || editingRelease.releaseDate,
+          coverImage: item.coverImage || editingRelease.coverImage,
+          description: item.description || editingRelease.description,
+          spotifyUrl: item.spotifyUrl || editingRelease.spotifyUrl,
+          previewAudioUrl: item.previewAudioUrl || editingRelease.previewAudioUrl,
+          streamingPlatforms: item.streamingPlatforms?.length
+            ? item.streamingPlatforms
+            : editingRelease.streamingPlatforms,
+        });
+        showToast(`Auto-filled details for "${item.title}" from Spotify!`);
+      } else {
+        showToast(res.error || 'Could not fetch Spotify track info.');
+      }
+    } catch (e: any) {
+      showToast(e.message || 'Error fetching track from Spotify.');
+    } finally {
+      setIsSyncingSingleSpotify(false);
+    }
+  };
+
+  const handleFetchSmartLink = async () => {
+    if (!editingRelease || !editingRelease.smartUrl?.trim()) {
+      showToast('Please paste a Feature.fm (ffem.bio / ffm.bio) URL first.');
+      return;
+    }
+    setIsSyncingSmartLink(true);
+    try {
+      const res = await syncFromSmartLink(editingRelease.smartUrl.trim());
+      if (res.success) {
+        setEditingRelease((prev) => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            smartUrl: res.smartUrl || prev.smartUrl,
+            title: prev.title.trim() ? prev.title : (res.title || prev.title),
+            coverImage: prev.coverImage.trim() ? prev.coverImage : (res.coverImage || prev.coverImage),
+            description: prev.description.trim() ? prev.description : (res.description || prev.description),
+          };
+        });
+        showToast(
+          res.coverImage
+            ? `Auto-fetched title & artwork from smart link!`
+            : `Smart link connected! Title auto-filled. You can upload artwork now.`
+        );
+      } else {
+        showToast(res.error || 'Could not fetch smart link details.');
+      }
+    } catch (err: any) {
+      showToast(err.message || 'Error fetching from smart link.');
+    } finally {
+      setIsSyncingSmartLink(false);
+    }
+  };
+
+  const handleQuickFetchSingleYouTube = async () => {
+    if (!editingVideo || !editingVideo.youtubeUrl.trim()) {
+      showToast('Please enter a YouTube video URL first.');
+      return;
+    }
+    setIsSyncingSingleYouTube(true);
+    try {
+      const res = await syncFromYouTube(editingVideo.youtubeUrl.trim());
+      if (res.success && res.videos.length > 0) {
+        const item = res.videos[0];
+        setEditingVideo({
+          ...editingVideo,
+          title: item.title || editingVideo.title,
+          thumbnailUrl: item.thumbnailUrl || editingVideo.thumbnailUrl,
+          description: item.description || editingVideo.description,
+          releaseDate: item.releaseDate || editingVideo.releaseDate,
+        });
+        showToast(`Auto-fetched video details from YouTube!`);
+      } else {
+        showToast(res.error || 'Could not fetch YouTube video info.');
+      }
+    } catch (e: any) {
+      showToast(e.message || 'Error fetching video from YouTube.');
+    } finally {
+      setIsSyncingSingleYouTube(false);
+    }
   };
 
   const handleCopyReleaseBioLink = (rel: MusicRelease) => {
@@ -232,9 +389,20 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
           .replace(/^-+|-+$/g, '') ||
         editingRelease.id;
 
+      const isNewRelease = !releases.some((r) => r.id === editingRelease.id);
+
+      let cleanSmartUrl = (editingRelease.smartUrl || '').trim();
+      if (cleanSmartUrl && !cleanSmartUrl.startsWith('http://') && !cleanSmartUrl.startsWith('https://')) {
+        cleanSmartUrl = `https://${cleanSmartUrl}`;
+      }
+
       const updatedRelease: MusicRelease = {
         ...editingRelease,
+        smartUrl: cleanSmartUrl || undefined,
         slug,
+        createdAt: editingRelease.createdAt || new Date().toISOString(),
+        // Newly added releases automatically become the featured Latest Release on the homepage
+        featured: isNewRelease ? true : editingRelease.featured,
       };
 
       // Mirror back to legacy URLs if dynamic platforms are used
@@ -249,6 +417,15 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
         if (yt) updatedRelease.youtubeUrl = yt.url;
       }
 
+      // If marked featured (which is always true for newly added releases), unset featured on other older releases
+      if (updatedRelease.featured) {
+        for (const r of releases) {
+          if (r.id !== updatedRelease.id && r.featured) {
+            await saveRelease({ ...r, featured: false });
+          }
+        }
+      }
+
       await saveRelease(updatedRelease);
       await onRefreshData();
       setIsReleaseModalOpen(false);
@@ -261,15 +438,8 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
     }
   };
 
-  const handleDeleteRelease = async (id: string, title: string) => {
-    if (!window.confirm(`Are you sure you want to delete "${title}"?`)) return;
-    try {
-      await deleteRelease(id);
-      await onRefreshData();
-      showToast(`Release "${title}" deleted.`);
-    } catch (err: any) {
-      showToast(`Delete failed: ${err.message}`);
-    }
+  const handleDeleteRelease = (id: string, title: string) => {
+    setDeleteTarget({ type: 'release', id, title });
   };
 
   // Video Actions
@@ -290,15 +460,8 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
     }
   };
 
-  const handleDeleteVideo = async (id: string, title: string) => {
-    if (!window.confirm(`Delete video "${title}"?`)) return;
-    try {
-      await deleteMusicVideo(id);
-      await onRefreshData();
-      showToast(`Video "${title}" deleted.`);
-    } catch (err: any) {
-      showToast(`Delete failed: ${err.message}`);
-    }
+  const handleDeleteVideo = (id: string, title: string) => {
+    setDeleteTarget({ type: 'video', id, title });
   };
 
   // Photo Actions
@@ -319,28 +482,45 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
     }
   };
 
-  const handleDeletePhoto = async (id: string) => {
-    if (!window.confirm('Delete this photograph from the gallery?')) return;
-    try {
-      await deletePhoto(id);
-      await onRefreshData();
-      showToast('Photograph deleted.');
-    } catch (err: any) {
-      showToast(`Delete failed: ${err.message}`);
-    }
+  const handleDeletePhoto = (id: string, caption?: string) => {
+    setDeleteTarget({ type: 'photo', id, title: caption || 'Selected photograph' });
   };
 
-  const handleClearDemoPhotos = async () => {
-    if (!window.confirm('Remove all demo stock photos? Only your own uploaded photographs will remain in the gallery.')) return;
-    setIsSaving(true);
+  const handleClearDemoPhotos = () => {
+    setDeleteTarget({
+      type: 'demoPhotos',
+      id: 'all-demo-photos',
+      title: 'All demo stock photography',
+    });
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!deleteTarget) return;
+    setIsDeleting(true);
     try {
-      await clearDemoPhotos();
-      await onRefreshData();
-      showToast('Demo stock photos removed.');
+      if (deleteTarget.type === 'release') {
+        await deleteRelease(deleteTarget.id);
+        await onRefreshData();
+        showToast(`Release "${deleteTarget.title}" deleted.`);
+      } else if (deleteTarget.type === 'video') {
+        await deleteMusicVideo(deleteTarget.id);
+        await onRefreshData();
+        showToast(`Video "${deleteTarget.title}" deleted.`);
+      } else if (deleteTarget.type === 'photo') {
+        await deletePhoto(deleteTarget.id);
+        await onRefreshData();
+        showToast('Photograph deleted.');
+      } else if (deleteTarget.type === 'demoPhotos') {
+        await clearDemoPhotos();
+        await onRefreshData();
+        showToast('Demo stock photos removed.');
+      }
+      setDeleteTarget(null);
     } catch (err: any) {
-      showToast(`Notice: ${err.message}`);
+      showToast(`Delete notice: ${err?.message || 'Item removed'}`);
+      setDeleteTarget(null);
     } finally {
-      setIsSaving(false);
+      setIsDeleting(false);
     }
   };
 
@@ -792,39 +972,57 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
         {/* ---------------------------------------------------- */}
         {activeTab === 'releases' && (
           <div className="space-y-6">
-            <div className="flex justify-between items-center">
-              <p className="text-xs text-neutral-400 uppercase tracking-wider">
-                Showing {releases.length} music releases (newest appears first on website)
-              </p>
-              <button
-                onClick={() => {
-                  setEditingRelease({
-                    id: `rel-${Date.now()}`,
-                    title: '',
-                    type: 'Single',
-                    slug: '',
-                    releaseDate: new Date().toISOString().split('T')[0],
-                    coverImage: '',
-                    description: '',
-                    featured: false,
-                    streamingPlatforms: [
-                      { id: `sp-${Date.now()}-1`, platform: 'spotify', label: 'Spotify', url: '', actionText: 'Listen' },
-                      { id: `sp-${Date.now()}-2`, platform: 'appleMusic', label: 'Apple Music', url: '', actionText: 'Listen' },
-                      { id: `sp-${Date.now()}-3`, platform: 'youtubeMusic', label: 'YouTube Music', url: '', actionText: 'Listen' },
-                      { id: `sp-${Date.now()}-4`, platform: 'youtube', label: 'YouTube Video', url: '', actionText: 'Watch' },
-                    ],
-                    spotifyUrl: '',
-                    youtubeUrl: '',
-                    appleMusicUrl: '',
-                    youtubeMusicUrl: '',
-                  });
-                  setIsReleaseModalOpen(true);
-                }}
-                className="inline-flex items-center space-x-2 px-5 py-2.5 rounded-xl bg-white text-black font-bold text-xs tracking-wider uppercase hover:bg-neutral-200 transition-colors cursor-pointer"
-              >
-                <Plus className="w-4 h-4" />
-                <span>Add Release</span>
-              </button>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <h3 className="text-sm font-bold text-white uppercase tracking-wider">
+                  Music Releases Catalog ({releases.length})
+                </h3>
+                <p className="text-xs text-neutral-400 mt-0.5">
+                  Showing {releases.length} music release{releases.length === 1 ? '' : 's'} (newest appears first on website).
+                </p>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsSpotifySyncOpen(true)}
+                  className="inline-flex items-center space-x-2 px-4 py-2.5 rounded-xl bg-[#1DB954] hover:bg-[#1ed760] text-black font-bold text-xs tracking-wider uppercase transition-all cursor-pointer shadow-lg shadow-[#1DB954]/20"
+                  title="Automatically scan and import all songs live on Spotify"
+                >
+                  <BrandLogos platform="spotify" className="w-4 h-4 text-black" />
+                  <span>Auto-Fetch from Spotify</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditingRelease({
+                      id: `rel-${Date.now()}`,
+                      title: '',
+                      type: 'Single',
+                      slug: '',
+                      releaseDate: new Date().toISOString().split('T')[0],
+                      coverImage: '',
+                      description: '',
+                      smartUrl: '',
+                      createdAt: new Date().toISOString(),
+                      featured: true,
+                      streamingPlatforms: [],
+                      spotifyUrl: '',
+                      youtubeUrl: '',
+                      appleMusicUrl: '',
+                      youtubeMusicUrl: '',
+                    });
+                    setQuickSpotifyTrackUrl('');
+                    setShowAdvancedPlatforms(false);
+                    setIsReleaseModalOpen(true);
+                  }}
+                  className="inline-flex items-center space-x-2 px-4 py-2.5 rounded-xl bg-white text-black font-bold text-xs tracking-wider uppercase hover:bg-neutral-200 transition-colors cursor-pointer"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Add Release</span>
+                </button>
+              </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -932,28 +1130,47 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
         {/* ---------------------------------------------------- */}
         {activeTab === 'videos' && (
           <div className="space-y-6">
-            <div className="flex justify-between items-center">
-              <p className="text-xs text-neutral-400 uppercase tracking-wider">
-                Showing {videos.length} videos
-              </p>
-              <button
-                onClick={() => {
-                  setEditingVideo({
-                    id: `vid-${Date.now()}`,
-                    title: '',
-                    thumbnailUrl: '',
-                    youtubeUrl: '',
-                    description: '',
-                    releaseDate: new Date().toISOString().split('T')[0],
-                    featured: false,
-                  });
-                  setIsVideoModalOpen(true);
-                }}
-                className="inline-flex items-center space-x-2 px-5 py-2.5 rounded-xl bg-white text-black font-bold text-xs tracking-wider uppercase hover:bg-neutral-200 transition-colors cursor-pointer"
-              >
-                <Plus className="w-4 h-4" />
-                <span>Add Video</span>
-              </button>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <h3 className="text-sm font-bold text-white uppercase tracking-wider">
+                  Music Videos Catalog ({videos.length})
+                </h3>
+                <p className="text-xs text-neutral-400 mt-0.5">
+                  Showing {videos.length} video{videos.length === 1 ? '' : 's'} displayed on your official video gallery.
+                </p>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsYouTubeSyncOpen(true)}
+                  className="inline-flex items-center space-x-2 px-4 py-2.5 rounded-xl bg-[#FF0000] hover:bg-[#ff1a1a] text-white font-bold text-xs tracking-wider uppercase transition-all cursor-pointer shadow-lg shadow-[#FF0000]/20"
+                  title="Automatically scan and import videos from your YouTube channel"
+                >
+                  <BrandLogos platform="youtube" className="w-4 h-4 text-white" />
+                  <span>Auto-Fetch from YouTube</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditingVideo({
+                      id: `vid-${Date.now()}`,
+                      title: '',
+                      thumbnailUrl: '',
+                      youtubeUrl: '',
+                      description: '',
+                      releaseDate: new Date().toISOString().split('T')[0],
+                      featured: false,
+                    });
+                    setIsVideoModalOpen(true);
+                  }}
+                  className="inline-flex items-center space-x-2 px-5 py-2.5 rounded-xl bg-white text-black font-bold text-xs tracking-wider uppercase hover:bg-neutral-200 transition-colors cursor-pointer"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Add Video</span>
+                </button>
+              </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -1083,7 +1300,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                         </button>
                         <span className="text-white/40">&middot;</span>
                         <button
-                          onClick={() => handleDeletePhoto(p.id)}
+                          onClick={() => handleDeletePhoto(p.id, p.caption)}
                           className="text-[11px] uppercase tracking-wider text-red-400 hover:underline cursor-pointer"
                         >
                           Delete
@@ -1300,6 +1517,105 @@ service cloud.firestore {
             </h3>
 
             <form onSubmit={handleSaveReleaseForm} className="space-y-4">
+              {/* Feature.fm / ffem.bio Smart Link Direct One-Link Integration */}
+              <div className="p-4 rounded-2xl bg-gradient-to-r from-pink-500/10 via-purple-500/10 to-blue-500/10 border border-pink-500/30 space-y-2.5 shadow-lg shadow-pink-500/5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-2">
+                    <div className="w-6 h-6 rounded-lg bg-pink-500/20 text-pink-400 flex items-center justify-center">
+                      <Sparkles className="w-3.5 h-3.5 text-pink-400" />
+                    </div>
+                    <span className="text-xs font-bold text-white uppercase tracking-wider">
+                      Feature.fm / Smart Link (ffem.bio / ffm.bio)
+                    </span>
+                  </div>
+                  {isSyncingSmartLink && (
+                    <span className="text-[10px] text-pink-400 flex items-center space-x-1 font-medium">
+                      <Sparkles className="w-3 h-3 animate-spin" />
+                      <span>Fetching track details...</span>
+                    </span>
+                  )}
+                </div>
+
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    placeholder="Paste Feature.fm link (e.g. https://ffem.bio/... or https://ffm.bio/...)"
+                    value={editingRelease.smartUrl || ''}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setEditingRelease((prev) => {
+                        if (!prev) return prev;
+                        let candidateTitle = prev.title;
+                        if (!candidateTitle.trim() && val.trim()) {
+                          try {
+                            const urlObj = new URL(val.startsWith('http') ? val : `https://${val}`);
+                            const slug = urlObj.pathname.split('/').filter(Boolean).pop();
+                            if (slug) {
+                              candidateTitle = slug.replace(/[-_]+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+                            }
+                          } catch {}
+                        }
+                        return {
+                          ...prev,
+                          smartUrl: val,
+                          title: candidateTitle,
+                        };
+                      });
+                    }}
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-[#14141a] border border-white/10 text-white text-xs focus:outline-none focus:border-pink-500 font-mono"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleFetchSmartLink}
+                    disabled={isSyncingSmartLink || !editingRelease.smartUrl?.trim()}
+                    className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-400 hover:to-purple-500 text-white font-bold text-xs uppercase tracking-wider transition-all shrink-0 cursor-pointer disabled:opacity-40 shadow-md shadow-pink-500/20"
+                    title="Auto-fetch track title and artwork from smart link"
+                  >
+                    Auto-Fill
+                  </button>
+                </div>
+
+                <div className="flex items-start space-x-2 text-[11px] text-neutral-300">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0 mt-0.5" />
+                  <span>
+                    <strong>One-Link Auto Redirect:</strong> আপনি শুধু এই ffem.bio লিংকটি পেস্ট করলে আর আলাদা আলাদা কোনো স্ট্রিমিং লিংক (Spotify, Apple, YouTube) যোগ করতে হবে না। শ্রোতারা রিলিজের উপর ক্লিক করলেই সরাসরি আপনার ffem.bio লিংকে চলে যাবে!
+                  </span>
+                </div>
+              </div>
+
+              {/* Quick Auto-Fill from Spotify Track Link (Alternative helper) */}
+              <div className="p-3 rounded-xl bg-white/[0.02] border border-white/10 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-semibold text-neutral-400 uppercase tracking-wider flex items-center space-x-1.5">
+                    <BrandLogos platform="spotify" className="w-3 h-3 text-[#1DB954]" />
+                    <span>Or Quick Auto-Fill from Spotify Track URL</span>
+                  </span>
+                  {isSyncingSingleSpotify && (
+                    <span className="text-[10px] text-[#1DB954] flex items-center space-x-1">
+                      <Sparkles className="w-3 h-3 animate-spin" />
+                      <span>Fetching track details...</span>
+                    </span>
+                  )}
+                </div>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    placeholder="Paste Spotify track link (e.g. https://open.spotify.com/track/...)"
+                    value={quickSpotifyTrackUrl}
+                    onChange={(e) => setQuickSpotifyTrackUrl(e.target.value)}
+                    className="w-full px-3 py-1.5 rounded-lg bg-[#14141a] border border-white/10 text-white text-xs focus:outline-none focus:border-[#1DB954]"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleQuickFetchSingleSpotify}
+                    disabled={isSyncingSingleSpotify || !quickSpotifyTrackUrl.trim()}
+                    className="px-3 py-1.5 rounded-lg bg-[#1DB954]/20 hover:bg-[#1DB954] text-[#1DB954] hover:text-black font-bold text-xs uppercase tracking-wider transition-colors shrink-0 cursor-pointer disabled:opacity-40"
+                  >
+                    Auto-Fill
+                  </button>
+                </div>
+              </div>
+
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-semibold uppercase text-neutral-400 mb-1">
@@ -1366,7 +1682,7 @@ service cloud.firestore {
                     htmlFor="release-featured-checkbox"
                     className="text-xs font-semibold uppercase tracking-wider text-neutral-300 cursor-pointer"
                   >
-                    Feature on Homepage Hero
+                    Feature on Homepage Hero (Auto-enabled for new releases)
                   </label>
                 </div>
               </div>
@@ -1398,16 +1714,35 @@ service cloud.firestore {
                 />
               </div>
 
-              {/* Streaming Platform URLs with (+) Add Button & Authentic Brand Logos */}
-              <StreamingPlatformsManager
-                platforms={editingRelease.streamingPlatforms || []}
-                onChange={(updatedPlatforms) =>
-                  setEditingRelease({
-                    ...editingRelease,
-                    streamingPlatforms: updatedPlatforms,
-                  })
-                }
-              />
+              {/* Optional Individual Streaming Platform URLs Accordion */}
+              <div className="p-3.5 rounded-xl bg-white/[0.02] border border-white/10 space-y-3">
+                <button
+                  type="button"
+                  onClick={() => setShowAdvancedPlatforms(!showAdvancedPlatforms)}
+                  className="flex items-center justify-between w-full text-xs font-semibold uppercase tracking-wider text-neutral-300 hover:text-white transition-colors cursor-pointer"
+                >
+                  <span>
+                    Individual Platform Links (Optional - Feature.fm ffem.bio থাকলে প্রয়োজন নেই)
+                  </span>
+                  <span className="text-xs font-bold px-2 py-0.5 rounded bg-white/10 text-white">
+                    {showAdvancedPlatforms ? 'Hide' : 'Show'}
+                  </span>
+                </button>
+
+                {showAdvancedPlatforms && (
+                  <div className="pt-2 border-t border-white/10">
+                    <StreamingPlatformsManager
+                      platforms={editingRelease.streamingPlatforms || []}
+                      onChange={(updatedPlatforms) =>
+                        setEditingRelease({
+                          ...editingRelease,
+                          streamingPlatforms: updatedPlatforms,
+                        })
+                      }
+                    />
+                  </div>
+                )}
+              </div>
 
               <div>
                 <label className="block text-xs font-semibold uppercase text-neutral-400 mb-1">
@@ -1504,9 +1839,29 @@ service cloud.firestore {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold uppercase text-neutral-400 mb-1">
-                  YouTube Video URL *
-                </label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-xs font-semibold uppercase text-neutral-400">
+                    YouTube Video URL *
+                  </label>
+                  <button
+                    type="button"
+                    onClick={handleQuickFetchSingleYouTube}
+                    disabled={isSyncingSingleYouTube || !editingVideo.youtubeUrl.trim()}
+                    className="text-[11px] font-bold uppercase tracking-wider text-[#FF0000] hover:underline flex items-center space-x-1 cursor-pointer disabled:opacity-40"
+                  >
+                    {isSyncingSingleYouTube ? (
+                      <>
+                        <Sparkles className="w-3 h-3 animate-spin" />
+                        <span>Fetching Details...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="w-3 h-3" />
+                        <span>Auto-Fetch Details</span>
+                      </>
+                    )}
+                  </button>
+                </div>
                 <input
                   type="url"
                   value={editingVideo.youtubeUrl}
@@ -1515,8 +1870,11 @@ service cloud.firestore {
                   }
                   required
                   placeholder="https://www.youtube.com/watch?v=..."
-                  className="w-full px-4 py-2.5 rounded-xl bg-[#14141a] border border-white/10 text-white text-sm focus:outline-none focus:border-white/30"
+                  className="w-full px-4 py-2.5 rounded-xl bg-[#14141a] border border-white/10 text-white text-sm focus:outline-none focus:border-[#FF0000]"
                 />
+                <p className="text-[11px] text-neutral-400 mt-1">
+                  Tip: Paste the YouTube URL and click &quot;Auto-Fetch Details&quot; to automatically pull the HD thumbnail and video title.
+                </p>
               </div>
 
               {/* Video Thumbnail with instant live preview */}
@@ -1714,6 +2072,48 @@ service cloud.firestore {
           </div>
         </div>
       )}
+
+      {/* ---------------------------------------------------- */}
+      {/* SPOTIFY AUTO-FETCH MODAL */}
+      {/* ---------------------------------------------------- */}
+      <SpotifySyncModal
+        isOpen={isSpotifySyncOpen}
+        onClose={() => setIsSpotifySyncOpen(false)}
+        onImportReleases={handleImportSpotifyReleases}
+        defaultArtistUrl={socialForm.spotify || 'https://open.spotify.com/artist/7tUWUGzYWCzKKf7JwbhmP7?si=IuMN51JxTLyukUnWQ7jvDw'}
+      />
+
+      {/* ---------------------------------------------------- */}
+      {/* YOUTUBE AUTO-FETCH MODAL */}
+      {/* ---------------------------------------------------- */}
+      <YouTubeSyncModal
+        isOpen={isYouTubeSyncOpen}
+        onClose={() => setIsYouTubeSyncOpen(false)}
+        onImportVideos={handleImportYouTubeVideos}
+        defaultChannelInput={socialForm.youtube || '@tanbyr'}
+      />
+
+      {/* ---------------------------------------------------- */}
+      {/* IN-APP DELETE CONFIRMATION MODAL */}
+      {/* ---------------------------------------------------- */}
+      <DeleteConfirmationModal
+        isOpen={!!deleteTarget}
+        itemType={
+          deleteTarget?.type === 'release'
+            ? 'Music Release'
+            : deleteTarget?.type === 'video'
+            ? 'Music Video'
+            : deleteTarget?.type === 'demoPhotos'
+            ? 'Demo Photos'
+            : 'Photograph'
+        }
+        itemTitle={deleteTarget?.title}
+        isDeleting={isDeleting}
+        onConfirm={handleConfirmDelete}
+        onClose={() => {
+          if (!isDeleting) setDeleteTarget(null);
+        }}
+      />
     </div>
   );
 };

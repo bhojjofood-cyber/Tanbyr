@@ -231,9 +231,29 @@ export default function App() {
     }
   }, [currentPath, settings, artist]);
 
-  // Identify Latest Release (featured first, or most recent)
-  const latestRelease =
-    releases.find((r) => r.featured) || (releases.length > 0 ? releases[0] : null);
+  // Identify Latest Release:
+  // When a new song is added, it is prioritized as the latest release.
+  const latestRelease = React.useMemo(() => {
+    if (!releases || releases.length === 0) return null;
+    const sorted = [...releases].sort((a, b) => {
+      // 1. Featured release flag (newly added songs are set to featured)
+      if (a.featured && !b.featured) return -1;
+      if (!a.featured && b.featured) return 1;
+
+      // 2. Newly added/created song timestamp (most recently added song takes top spot)
+      const createdA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+      const createdB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+      if (createdA !== createdB) {
+        return createdB - createdA;
+      }
+
+      // 3. Fallback to release date (newest release date)
+      const dateA = new Date(a.releaseDate || 0).getTime();
+      const dateB = new Date(b.releaseDate || 0).getTime();
+      return dateB - dateA;
+    });
+    return sorted[0];
+  }, [releases]);
 
   const featuredVideos = videos.filter((v) => v.featured).length > 0
     ? videos.filter((v) => v.featured)

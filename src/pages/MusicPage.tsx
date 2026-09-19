@@ -1,8 +1,9 @@
 import React, { useState, useMemo } from 'react';
 import { MusicRelease } from '../types';
 import { ReleaseCard } from '../components/ReleaseCard';
-import { Disc3, Search } from 'lucide-react';
+import { Disc3, Search, ExternalLink } from 'lucide-react';
 import { ScrollReveal } from '../components/ScrollReveal';
+import { SpotifyLogo } from '../components/BrandLogos';
 
 interface MusicPageProps {
   releases: MusicRelease[];
@@ -39,9 +40,21 @@ export const MusicPage: React.FC<MusicPageProps> = ({ releases, onOpenLyrics }) 
           <h1 className="text-4xl sm:text-6xl font-extrabold tracking-tight text-white uppercase mb-6">
             Music &amp; Releases
           </h1>
-          <p className="text-base sm:text-lg text-neutral-400 font-light leading-relaxed">
+          <p className="text-base sm:text-lg text-neutral-400 font-light leading-relaxed mb-6">
             Official catalog of singles, extended plays, and collaborative acoustic projects by TANBYR.
           </p>
+          <div className="flex justify-center">
+            <a
+              href="https://open.spotify.com/artist/7tUWUGzYWCzKKf7JwbhmP7?si=IuMN51JxTLyukUnWQ7jvDw"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center space-x-2 px-6 py-3 rounded-full bg-[#1DB954] hover:bg-[#1ed760] text-black font-extrabold text-xs uppercase tracking-[0.2em] transition-all duration-300 shadow-lg shadow-[#1DB954]/25 hover:scale-105 cursor-pointer"
+            >
+              <SpotifyLogo className="w-4 h-4" />
+              <span>FOLLOW ON SPOTIFY</span>
+              <ExternalLink className="w-3.5 h-3.5 opacity-70" />
+            </a>
+          </div>
         </div>
       </ScrollReveal>
 

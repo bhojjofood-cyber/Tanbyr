@@ -151,6 +151,13 @@ export async function getArtistProfile(): Promise<ArtistProfile> {
       const snap = await getDoc(docRef);
       if (snap.exists() && snap.data()) {
         const remote = { ...initialArtistProfile, ...(snap.data() as ArtistProfile) };
+        // Migrate away from old Unsplash placeholder images if still present
+        if (remote.heroImageUrl && remote.heroImageUrl.includes('unsplash.com')) {
+          remote.heroImageUrl = initialArtistProfile.heroImageUrl;
+        }
+        if (remote.profileImageUrl && remote.profileImageUrl.includes('unsplash.com')) {
+          remote.profileImageUrl = initialArtistProfile.profileImageUrl;
+        }
         setLocalItem(STORAGE_KEYS.ARTIST, remote, false);
         return remote;
       }
@@ -171,7 +178,14 @@ export async function getArtistProfile(): Promise<ArtistProfile> {
     }
   }
   const local = getLocalItem<ArtistProfile>(STORAGE_KEYS.ARTIST, initialArtistProfile);
-  return { ...initialArtistProfile, ...(local || {}) };
+  const resolved = { ...initialArtistProfile, ...(local || {}) };
+  if (resolved.heroImageUrl && resolved.heroImageUrl.includes('unsplash.com')) {
+    resolved.heroImageUrl = initialArtistProfile.heroImageUrl;
+  }
+  if (resolved.profileImageUrl && resolved.profileImageUrl.includes('unsplash.com')) {
+    resolved.profileImageUrl = initialArtistProfile.profileImageUrl;
+  }
+  return resolved;
 }
 
 export async function updateArtistProfile(profile: ArtistProfile): Promise<void> {
@@ -191,74 +205,126 @@ export async function updateArtistProfile(profile: ArtistProfile): Promise<void>
   setLocalItem(STORAGE_KEYS.ARTIST, profile, true);
 }
 
+// PERSISTENT DELETION TRACKING
+const DELETED_RELEASES_KEY = 'tanbyr_deleted_release_ids';
+const DELETED_VIDEOS_KEY = 'tanbyr_deleted_video_ids';
+const DELETED_PHOTOS_KEY = 'tanbyr_deleted_photo_ids';
+
+function getDeletedIds(key: string): Set<string> {
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return new Set();
+    const arr = JSON.parse(raw);
+    return new Set(Array.isArray(arr) ? arr : []);
+  } catch {
+    return new Set();
+  }
+}
+
+function addDeletedId(key: string, id: string): void {
+  try {
+    const set = getDeletedIds(key);
+    set.add(id);
+    localStorage.setItem(key, JSON.stringify(Array.from(set)));
+  } catch {}
+}
+
+function removeDeletedId(key: string, id: string): void {
+  try {
+    const set = getDeletedIds(key);
+    set.delete(id);
+    localStorage.setItem(key, JSON.stringify(Array.from(set)));
+  } catch {}
+}
+
 // RELEASES
 export async function getReleases(): Promise<MusicRelease[]> {
+  const deletedIds = getDeletedIds(DELETED_RELEASES_KEY);
   if (db) {
     try {
       const releasesRef = collection(db, 'releases');
       const q = query(releasesRef, orderBy('releaseDate', 'desc'));
       const snapshot = await getDocs(q);
       if (!snapshot.empty) {
-        const items = snapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data()
-        })) as MusicRelease[];
-        setLocalItem(STORAGE_KEYS.RELEASES, items, false);
-        return items;
+        const items = snapshot.docs
+          .map(doc => ({
+            id: doc.id,
+            ...doc.data()
+          })) as MusicRelease[];
+
+        // Filter out any release explicitly deleted by the user
+        const activeItems = items.filter(r => !deletedIds.has(r.id));
+        setLocalItem(STORAGE_KEYS.RELEASES, activeItems, false);
+        return activeItems;
       }
-      // Seed initial releases if Firestore collection is empty
-      try {
-        for (const rel of initialReleases) {
-          await setDoc(doc(db, 'releases', rel.id), {
-            ...cleanFirestoreData(rel),
-            updatedAt: serverTimestamp()
-          });
+      // Seed initial releases only if never seeded or deleted before
+      const hasSeeded = localStorage.getItem('tanbyr_releases_seeded_flag');
+      if (!hasSeeded && deletedIds.size === 0) {
+        localStorage.setItem('tanbyr_releases_seeded_flag', 'true');
+        const toSeed = initialReleases.filter(r => !deletedIds.has(r.id));
+        try {
+          for (const rel of toSeed) {
+            await setDoc(doc(db, 'releases', rel.id), {
+              ...cleanFirestoreData(rel),
+              updatedAt: serverTimestamp()
+            });
+          }
+          console.log('[Firebase] Initial releases seeded to Firestore');
+        } catch (seedErr) {
+          console.warn('[Firebase] Seed releases notice:', seedErr);
         }
-        console.log('[Firebase] Initial releases seeded to Firestore');
-      } catch (seedErr) {
-        console.warn('[Firebase] Seed releases notice:', seedErr);
+        setLocalItem(STORAGE_KEYS.RELEASES, toSeed, false);
+        return toSeed;
       }
     } catch (err) {
       console.warn('Error reading releases from Firestore, using local fallback:', err);
     }
   }
-  const local = getLocalItem<MusicRelease[]>(STORAGE_KEYS.RELEASES, initialReleases);
+  const local = getLocalItem<MusicRelease[]>(STORAGE_KEYS.RELEASES, initialReleases)
+    .filter(r => !deletedIds.has(r.id));
   return [...local].sort((a, b) => new Date(b.releaseDate).getTime() - new Date(a.releaseDate).getTime());
 }
 
 export async function saveRelease(release: MusicRelease): Promise<void> {
+  removeDeletedId(DELETED_RELEASES_KEY, release.id);
+  const releaseWithMetadata: MusicRelease = {
+    ...release,
+    createdAt: release.createdAt || new Date().toISOString(),
+  };
+
   if (db) {
     try {
-      const docRef = doc(db, 'releases', release.id);
+      const docRef = doc(db, 'releases', releaseWithMetadata.id);
       await setDoc(docRef, {
-        ...cleanFirestoreData(release),
+        ...cleanFirestoreData(releaseWithMetadata),
         updatedAt: serverTimestamp()
       }, { merge: true });
-      console.log('[Firebase] Successfully saved release to Firestore:', release.id);
+      console.log('[Firebase] Successfully saved release to Firestore:', releaseWithMetadata.id);
     } catch (err) {
       console.error('Failed to save release to Firestore:', err);
       throw err;
     }
   }
   const current = getLocalItem<MusicRelease[]>(STORAGE_KEYS.RELEASES, initialReleases);
-  const exists = current.findIndex(r => r.id === release.id);
+  const exists = current.findIndex(r => r.id === releaseWithMetadata.id);
   let updated: MusicRelease[];
   if (exists >= 0) {
-    updated = current.map(r => r.id === release.id ? release : r);
+    updated = current.map(r => (r.id === releaseWithMetadata.id ? releaseWithMetadata : (releaseWithMetadata.featured ? { ...r, featured: false } : r)));
   } else {
-    updated = [release, ...current];
+    const mapped = releaseWithMetadata.featured ? current.map(r => ({ ...r, featured: false })) : current;
+    updated = [releaseWithMetadata, ...mapped];
   }
   setLocalItem(STORAGE_KEYS.RELEASES, updated, true);
 }
 
 export async function deleteRelease(id: string): Promise<void> {
+  addDeletedId(DELETED_RELEASES_KEY, id);
   if (db) {
     try {
       await deleteDoc(doc(db, 'releases', id));
       console.log('[Firebase] Successfully deleted release from Firestore:', id);
     } catch (err) {
-      console.error('Failed to delete release from Firestore:', err);
-      throw err;
+      console.warn('Notice deleting release from Firestore:', err);
     }
   }
   const current = getLocalItem<MusicRelease[]>(STORAGE_KEYS.RELEASES, initialReleases);
@@ -267,39 +333,52 @@ export async function deleteRelease(id: string): Promise<void> {
 
 // MUSIC VIDEOS
 export async function getMusicVideos(): Promise<MusicVideo[]> {
+  const deletedIds = getDeletedIds(DELETED_VIDEOS_KEY);
   if (db) {
     try {
       const videosRef = collection(db, 'musicVideos');
       const q = query(videosRef, orderBy('releaseDate', 'desc'));
       const snapshot = await getDocs(q);
       if (!snapshot.empty) {
-        const items = snapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data()
-        })) as MusicVideo[];
-        setLocalItem(STORAGE_KEYS.VIDEOS, items, false);
-        return items;
+        const items = snapshot.docs
+          .map(doc => ({
+            id: doc.id,
+            ...doc.data()
+          })) as MusicVideo[];
+        const activeItems = items.filter(v => !deletedIds.has(v.id));
+        setLocalItem(STORAGE_KEYS.VIDEOS, activeItems, false);
+        return activeItems;
       }
-      // Seed initial videos if Firestore is empty
-      try {
-        for (const vid of initialMusicVideos) {
-          await setDoc(doc(db, 'musicVideos', vid.id), {
-            ...cleanFirestoreData(vid),
-            updatedAt: serverTimestamp()
-          });
+      // Seed initial videos if Firestore is empty and no videos were deleted
+      const hasSeeded = localStorage.getItem('tanbyr_videos_seeded_flag');
+      if (!hasSeeded && deletedIds.size === 0) {
+        localStorage.setItem('tanbyr_videos_seeded_flag', 'true');
+        const toSeed = initialMusicVideos.filter(v => !deletedIds.has(v.id));
+        try {
+          for (const vid of toSeed) {
+            await setDoc(doc(db, 'musicVideos', vid.id), {
+              ...cleanFirestoreData(vid),
+              updatedAt: serverTimestamp()
+            });
+          }
+          console.log('[Firebase] Initial music videos seeded to Firestore');
+        } catch (seedErr) {
+          console.warn('[Firebase] Seed music videos notice:', seedErr);
         }
-        console.log('[Firebase] Initial music videos seeded to Firestore');
-      } catch (seedErr) {
-        console.warn('[Firebase] Seed music videos notice:', seedErr);
+        setLocalItem(STORAGE_KEYS.VIDEOS, toSeed, false);
+        return toSeed;
       }
     } catch (err) {
       console.warn('Error reading music videos from Firestore:', err);
     }
   }
-  return getLocalItem<MusicVideo[]>(STORAGE_KEYS.VIDEOS, initialMusicVideos);
+  const local = getLocalItem<MusicVideo[]>(STORAGE_KEYS.VIDEOS, initialMusicVideos)
+    .filter(v => !deletedIds.has(v.id));
+  return local;
 }
 
 export async function saveMusicVideo(video: MusicVideo): Promise<void> {
+  removeDeletedId(DELETED_VIDEOS_KEY, video.id);
   if (db) {
     try {
       const docRef = doc(db, 'musicVideos', video.id);
@@ -320,13 +399,13 @@ export async function saveMusicVideo(video: MusicVideo): Promise<void> {
 }
 
 export async function deleteMusicVideo(id: string): Promise<void> {
+  addDeletedId(DELETED_VIDEOS_KEY, id);
   if (db) {
     try {
       await deleteDoc(doc(db, 'musicVideos', id));
       console.log('[Firebase] Successfully deleted video from Firestore:', id);
     } catch (err) {
-      console.error('Failed to delete video from Firestore:', err);
-      throw err;
+      console.warn('Notice deleting video from Firestore:', err);
     }
   }
   const current = getLocalItem<MusicVideo[]>(STORAGE_KEYS.VIDEOS, initialMusicVideos);
@@ -335,39 +414,52 @@ export async function deleteMusicVideo(id: string): Promise<void> {
 
 // PHOTOS
 export async function getPhotos(): Promise<PhotoItem[]> {
+  const deletedIds = getDeletedIds(DELETED_PHOTOS_KEY);
   if (db) {
     try {
       const photosRef = collection(db, 'photos');
       const q = query(photosRef, orderBy('date', 'desc'));
       const snapshot = await getDocs(q);
       if (!snapshot.empty) {
-        const items = snapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data()
-        })) as PhotoItem[];
-        setLocalItem(STORAGE_KEYS.PHOTOS, items, false);
-        return items;
+        const items = snapshot.docs
+          .map(doc => ({
+            id: doc.id,
+            ...doc.data()
+          })) as PhotoItem[];
+        const activeItems = items.filter(p => !deletedIds.has(p.id));
+        setLocalItem(STORAGE_KEYS.PHOTOS, activeItems, false);
+        return activeItems;
       }
-      // Seed initial photos if Firestore is empty
-      try {
-        for (const p of initialPhotos) {
-          await setDoc(doc(db, 'photos', p.id), {
-            ...cleanFirestoreData(p),
-            updatedAt: serverTimestamp()
-          });
+      // Seed initial photos if empty and no deletes
+      const hasSeeded = localStorage.getItem('tanbyr_photos_seeded_flag');
+      if (!hasSeeded && deletedIds.size === 0) {
+        localStorage.setItem('tanbyr_photos_seeded_flag', 'true');
+        const toSeed = initialPhotos.filter(p => !deletedIds.has(p.id));
+        try {
+          for (const p of toSeed) {
+            await setDoc(doc(db, 'photos', p.id), {
+              ...cleanFirestoreData(p),
+              updatedAt: serverTimestamp()
+            });
+          }
+          console.log('[Firebase] Initial photos seeded to Firestore');
+        } catch (seedErr) {
+          console.warn('[Firebase] Seed photos notice:', seedErr);
         }
-        console.log('[Firebase] Initial photos seeded to Firestore');
-      } catch (seedErr) {
-        console.warn('[Firebase] Seed photos notice:', seedErr);
+        setLocalItem(STORAGE_KEYS.PHOTOS, toSeed, false);
+        return toSeed;
       }
     } catch (err) {
       console.warn('Error reading photos from Firestore:', err);
     }
   }
-  return getLocalItem<PhotoItem[]>(STORAGE_KEYS.PHOTOS, initialPhotos);
+  const local = getLocalItem<PhotoItem[]>(STORAGE_KEYS.PHOTOS, initialPhotos)
+    .filter(p => !deletedIds.has(p.id));
+  return local;
 }
 
 export async function savePhoto(photo: PhotoItem): Promise<void> {
+  removeDeletedId(DELETED_PHOTOS_KEY, photo.id);
   if (db) {
     try {
       const docRef = doc(db, 'photos', photo.id);
@@ -388,13 +480,13 @@ export async function savePhoto(photo: PhotoItem): Promise<void> {
 }
 
 export async function deletePhoto(id: string): Promise<void> {
+  addDeletedId(DELETED_PHOTOS_KEY, id);
   if (db) {
     try {
       await deleteDoc(doc(db, 'photos', id));
       console.log('[Firebase] Successfully deleted photo from Firestore:', id);
     } catch (err) {
-      console.error('Failed to delete photo from Firestore:', err);
-      throw err;
+      console.warn('Notice deleting photo from Firestore:', err);
     }
   }
   const current = getLocalItem<PhotoItem[]>(STORAGE_KEYS.PHOTOS, initialPhotos);
@@ -403,6 +495,9 @@ export async function deletePhoto(id: string): Promise<void> {
 
 export async function clearDemoPhotos(): Promise<void> {
   const demoIds = ['photo-1', 'photo-2', 'photo-3', 'photo-4', 'photo-5', 'photo-6'];
+  for (const id of demoIds) {
+    addDeletedId(DELETED_PHOTOS_KEY, id);
+  }
   if (db) {
     try {
       for (const id of demoIds) {
@@ -576,9 +671,14 @@ export async function unlockAdminWithPassword(
     const isMatch = await verifyAdminPassword(cleanInput, targetHash);
 
     if (isMatch) {
-      sessionStorage.setItem('tanbyr_admin_session_unlocked', 'true');
       try {
-        localStorage.removeItem(STORAGE_KEYS.DEMO_AUTH);
+        localStorage.setItem('tanbyr_admin_session_unlocked', 'true');
+        localStorage.setItem('tanbyr_admin_unlocked_at', Date.now().toString());
+      } catch (e) {
+        console.warn('localStorage save warning:', e);
+      }
+      try {
+        sessionStorage.setItem('tanbyr_admin_session_unlocked', 'true');
       } catch {
         // ignore
       }
@@ -595,6 +695,8 @@ export async function unlockAdminWithPassword(
 
 export function lockAdminSession(): void {
   try {
+    localStorage.removeItem('tanbyr_admin_session_unlocked');
+    localStorage.removeItem('tanbyr_admin_unlocked_at');
     sessionStorage.removeItem('tanbyr_admin_session_unlocked');
     localStorage.removeItem(STORAGE_KEYS.DEMO_AUTH);
   } catch {
@@ -619,7 +721,17 @@ export async function loginWithCredentials(
             'Access Denied: Your account is authenticated, but your UID is not authorized to manage TANBYR Official Website.',
         };
       }
-      sessionStorage.setItem('tanbyr_admin_session_unlocked', 'true');
+      try {
+        localStorage.setItem('tanbyr_admin_session_unlocked', 'true');
+        localStorage.setItem('tanbyr_admin_unlocked_at', Date.now().toString());
+      } catch (e) {
+        console.warn('localStorage save warning:', e);
+      }
+      try {
+        sessionStorage.setItem('tanbyr_admin_session_unlocked', 'true');
+      } catch {
+        // ignore
+      }
       window.dispatchEvent(new Event('tanbyr_auth_changed'));
       return { success: true, isAuthorized: true };
     } catch (err: any) {
@@ -659,22 +771,23 @@ export async function logoutUser(): Promise<void> {
 }
 
 export function subscribeToAuth(callback: (state: AuthState) => void): () => void {
-  // Purge any legacy persistent localStorage auth on initialization to prevent auto-login
-  try {
-    localStorage.removeItem(STORAGE_KEYS.DEMO_AUTH);
-  } catch {
-    // ignore
-  }
-
   const checkStatus = () => {
-    // Admin access strictly requires an active session unlock via Master Password
-    const isUnlocked = sessionStorage.getItem('tanbyr_admin_session_unlocked') === 'true';
+    // Admin access requires an active session unlock via Master Password
+    // Check both localStorage and sessionStorage so reload or switching tabs preserves the session
+    let isUnlocked = false;
+    try {
+      isUnlocked =
+        localStorage.getItem('tanbyr_admin_session_unlocked') === 'true' ||
+        sessionStorage.getItem('tanbyr_admin_session_unlocked') === 'true';
+    } catch {
+      isUnlocked = false;
+    }
 
     callback({
       user: auth?.currentUser || null,
       isAdmin: isUnlocked,
       loading: false,
-      isDemoAuth: isUnlocked,
+      isDemoAuth: false,
     });
   };
 

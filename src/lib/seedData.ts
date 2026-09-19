@@ -3,18 +3,44 @@ import { ArtistProfile, MusicRelease, MusicVideo, PhotoItem, SocialLinks, SiteSe
 export const initialArtistProfile: ArtistProfile = {
   name: 'TANBYR',
   tagline: 'Artist / Singer-Songwriter',
-  bio: `TANBYR is an independent singer-songwriter and recording artist. Blending emotive Bengali songwriting with contemporary acoustic textures, cinematic ambient layers, and heartfelt #Banglapop melodies, his music navigates love, longing, and poetic storytelling.
+  bio: `TANBYR is an emerging independent artist from Bangladesh, creating music inspired by emotions, dreams, love, and the stories we often keep to ourselves.
 
-Crafting each lyric with poetic honesty and raw acoustic nuance, TANBYR brings a fresh, modern sonic identity to South Asian pop. His debut release "Jabonare" represents an intimate sonic chapter, weaving delicate acoustic guitar phrasing with an atmospheric, modern production canvas.`,
-  profileImageUrl: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?auto=format&fit=crop&w=1200&q=80',
-  heroImageUrl: 'https://images.unsplash.com/photo-1508700115892-45ecd05ae2ad?auto=format&fit=crop&w=1920&q=85',
+Blending emotive Bengali songwriting with contemporary acoustic textures, cinematic ambient layers, and heartfelt melodies, his music navigates love, longing, and poetic storytelling with modern nuance.`,
+  profileImageUrl: 'https://image-cdn-ak.spotifycdn.com/image/ab6761610000e5eb61eed80a169785bf1b21053d',
+  heroImageUrl: 'https://image-cdn-ak.spotifycdn.com/image/ab6761610000e5eb61eed80a169785bf1b21053d',
   genre: '#Banglapop',
-  country: '',
-  location: '',
+  country: 'Bangladesh',
+  location: 'Dhaka, Bangladesh',
   activeSince: '2026',
 };
 
 export const initialReleases: MusicRelease[] = [
+  {
+    id: 'rel-tomar-hasi-2026',
+    title: 'Tomar Hasi',
+    type: 'Single',
+    slug: 'tomar-hasi',
+    releaseDate: '2026-08-08',
+    coverImage: 'https://image-cdn-fa.spotifycdn.com/image/ab67616d0000b27346f38a1df6be191f41ec1bef',
+    description: 'Official single by TANBYR released on Spotify. A heartfelt ballad combining warm acoustic tones, intimate lyricism, and modern melody.',
+    streamingPlatforms: [
+      { id: 'sp-1', platform: 'spotify', label: 'Spotify', url: 'https://open.spotify.com/track/1GL2KkLinDVBRpXplTZe3I', actionText: 'Listen' },
+      { id: 'am-1', platform: 'appleMusic', label: 'Apple Music', url: 'https://music.apple.com/artist/7tUWUGzYWCzKKf7JwbhmP7', actionText: 'Listen' },
+      { id: 'ym-1', platform: 'youtubeMusic', label: 'YouTube Music', url: 'https://music.youtube.com/search?q=tanbyr+tomar+hasi', actionText: 'Listen' },
+      { id: 'yt-1', platform: 'youtube', label: 'YouTube', url: 'https://www.youtube.com/@tanbyr', actionText: 'Watch' },
+      { id: 'az-1', platform: 'amazonMusic', label: 'Amazon Music', url: 'https://music.amazon.com/search/tanbyr+tomar+hasi', actionText: 'Stream' },
+    ],
+    spotifyUrl: 'https://open.spotify.com/track/1GL2KkLinDVBRpXplTZe3I',
+    youtubeUrl: 'https://www.youtube.com/@tanbyr',
+    youtubeMusicUrl: 'https://music.youtube.com/search?q=tanbyr+tomar+hasi',
+    appleMusicUrl: 'https://music.apple.com/artist/7tUWUGzYWCzKKf7JwbhmP7',
+    otherUrl: 'https://open.spotify.com/artist/7tUWUGzYWCzKKf7JwbhmP7',
+    lyricsUrl: '#',
+    credits: 'Composed, Written & Performed by TANBYR',
+    featured: true,
+    order: 1,
+    createdAt: '2026-08-08T12:00:00Z',
+  },
   {
     id: 'rel-jabonare-2026',
     title: 'Jabonare',
@@ -24,17 +50,17 @@ export const initialReleases: MusicRelease[] = [
     coverImage: 'https://images.unsplash.com/photo-1614613535308-eb5fbd3d2c17?auto=format&fit=crop&w=1000&q=80',
     description: 'An atmospheric indie ballad that captures quiet melancholia, poetic surrender, and heartfelt acoustic warmth.',
     streamingPlatforms: [
-      { id: 'sp-1', platform: 'spotify', label: 'Spotify', url: 'https://open.spotify.com/artist/placeholder-tanbyr', actionText: 'Listen' },
-      { id: 'am-1', platform: 'appleMusic', label: 'Apple Music', url: 'https://music.apple.com/artist/placeholder-tanbyr', actionText: 'Listen' },
-      { id: 'ym-1', platform: 'youtubeMusic', label: 'YouTube Music', url: 'https://music.youtube.com/search?q=tanbyr+jabonare', actionText: 'Listen' },
-      { id: 'yt-1', platform: 'youtube', label: 'YouTube Video', url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ', actionText: 'Watch' },
-      { id: 'az-1', platform: 'amazonMusic', label: 'Amazon Music', url: 'https://music.amazon.com/search/tanbyr+jabonare', actionText: 'Stream' },
+      { id: 'sp-2', platform: 'spotify', label: 'Spotify', url: 'https://open.spotify.com/artist/7tUWUGzYWCzKKf7JwbhmP7', actionText: 'Listen' },
+      { id: 'am-2', platform: 'appleMusic', label: 'Apple Music', url: 'https://music.apple.com/artist/7tUWUGzYWCzKKf7JwbhmP7', actionText: 'Listen' },
+      { id: 'ym-2', platform: 'youtubeMusic', label: 'YouTube Music', url: 'https://music.youtube.com/search?q=tanbyr+jabonare', actionText: 'Listen' },
+      { id: 'yt-2', platform: 'youtube', label: 'YouTube Video', url: 'https://www.youtube.com/@tanbyr', actionText: 'Watch' },
+      { id: 'az-2', platform: 'amazonMusic', label: 'Amazon Music', url: 'https://music.amazon.com/search/tanbyr+jabonare', actionText: 'Stream' },
     ],
-    spotifyUrl: 'https://open.spotify.com/artist/placeholder-tanbyr',
-    youtubeUrl: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+    spotifyUrl: 'https://open.spotify.com/artist/7tUWUGzYWCzKKf7JwbhmP7',
+    youtubeUrl: 'https://www.youtube.com/@tanbyr',
     youtubeMusicUrl: 'https://music.youtube.com/search?q=tanbyr+jabonare',
-    appleMusicUrl: 'https://music.apple.com/artist/placeholder-tanbyr',
-    otherUrl: 'https://tanbyr.bandcamp.com',
+    appleMusicUrl: 'https://music.apple.com/artist/7tUWUGzYWCzKKf7JwbhmP7',
+    otherUrl: 'https://open.spotify.com/artist/7tUWUGzYWCzKKf7JwbhmP7',
     lyricsUrl: '#',
     lyricsText: `[Verse 1]
 নিশিরাতে মেঘের ছায়ায় দাঁড়িয়ে একা
@@ -58,7 +84,7 @@ export const initialReleases: MusicRelease[] = [
 যাবোনা রে... তোমায় ছেড়ে... যাবোনা রে...`,
     credits: 'Composed, Written & Performed by TANBYR · Mastered by SoundLab Studio',
     featured: true,
-    order: 1,
+    order: 2,
     createdAt: '2026-09-01T12:00:00Z',
   },
   {
@@ -165,27 +191,27 @@ export const initialPhotos: PhotoItem[] = [
 
 export const initialSocialLinks: SocialLinks = {
   customLinks: [
+    { id: 'soc-spotify', platform: 'spotify', label: 'Spotify', url: 'https://open.spotify.com/artist/7tUWUGzYWCzKKf7JwbhmP7?si=IuMN51JxTLyukUnWQ7jvDw', enabled: true },
+    { id: 'soc-youtube', platform: 'youtube', label: 'YouTube', url: 'https://www.youtube.com/@tanbyr', enabled: true },
     { id: 'soc-instagram', platform: 'instagram', label: 'Instagram', url: 'https://instagram.com/tanbyrmusic', enabled: true },
-    { id: 'soc-spotify', platform: 'spotify', label: 'Spotify', url: 'https://open.spotify.com/artist/tanbyr-official', enabled: true },
-    { id: 'soc-youtube', platform: 'youtube', label: 'YouTube', url: 'https://youtube.com/@tanbyrmusic', enabled: true },
-    { id: 'soc-appleMusic', platform: 'appleMusic', label: 'Apple Music', url: 'https://music.apple.com/artist/tanbyr', enabled: true },
+    { id: 'soc-appleMusic', platform: 'appleMusic', label: 'Apple Music', url: 'https://music.apple.com/artist/7tUWUGzYWCzKKf7JwbhmP7', enabled: true },
     { id: 'soc-facebook', platform: 'facebook', label: 'Facebook', url: 'https://facebook.com/tanbyrmusic', enabled: true },
     { id: 'soc-tiktok', platform: 'tiktok', label: 'TikTok', url: 'https://tiktok.com/@tanbyrmusic', enabled: true },
   ],
-  spotify: 'https://open.spotify.com/artist/tanbyr-official',
-  youtube: 'https://youtube.com/@tanbyrmusic',
+  spotify: 'https://open.spotify.com/artist/7tUWUGzYWCzKKf7JwbhmP7?si=IuMN51JxTLyukUnWQ7jvDw',
+  youtube: 'https://www.youtube.com/@tanbyr',
   instagram: 'https://instagram.com/tanbyrmusic',
   tiktok: 'https://tiktok.com/@tanbyrmusic',
   facebook: 'https://facebook.com/tanbyrmusic',
   x: 'https://x.com/tanbyrmusic',
-  appleMusic: 'https://music.apple.com/artist/tanbyr',
+  appleMusic: 'https://music.apple.com/artist/7tUWUGzYWCzKKf7JwbhmP7',
   youtubeMusic: 'https://music.youtube.com/search?q=tanbyr',
 };
 
 export const initialSiteSettings: SiteSettings = {
   websiteTitle: 'TANBYR — Official Artist Website',
-  metaDescription: 'Official website of TANBYR — independent artist, singer and songwriter.',
-  ogImageUrl: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?auto=format&fit=crop&w=1200&q=80',
-  keywords: 'TANBYR, Tanbyr music, Jabonare, Banglapop, singer songwriter, independent artist',
+  metaDescription: 'Official website of TANBYR — independent artist, singer and songwriter from Bangladesh.',
+  ogImageUrl: 'https://image-cdn-ak.spotifycdn.com/image/ab6761610000e5eb61eed80a169785bf1b21053d',
+  keywords: 'TANBYR, Tanbyr music, Tomar Hasi, Jabonare, Banglapop, singer songwriter, independent artist, Bangladesh',
   canonicalUrl: 'https://tanbyr.com',
 };

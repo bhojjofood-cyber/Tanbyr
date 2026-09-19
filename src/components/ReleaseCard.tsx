@@ -1,5 +1,5 @@
 import React from 'react';
-import { FileText, ExternalLink, Share2, Disc } from 'lucide-react';
+import { FileText, ExternalLink, Share2, Disc, Sparkles } from 'lucide-react';
 import { MusicRelease } from '../types';
 import { SmartImage } from './SmartImage';
 import { BrandIcon, getBrandMeta } from './BrandLogos';
@@ -48,8 +48,14 @@ export const ReleaseCard: React.FC<ReleaseCardProps> = ({
       className="group bg-[#0d0d11] border border-white/10 rounded-2xl overflow-hidden hover:border-white/25 transition-all duration-500 flex flex-col justify-between"
     >
       <div>
-        {/* Cover Artwork with hover zoom */}
-        <div className="relative aspect-square w-full overflow-hidden bg-neutral-900">
+        {/* Cover Artwork with hover zoom and smart link routing */}
+        <a
+          href={release.smartUrl || releaseSmartLinkUrl}
+          target={release.smartUrl ? '_blank' : undefined}
+          rel={release.smartUrl ? 'noopener noreferrer' : undefined}
+          className="relative aspect-square w-full overflow-hidden bg-neutral-900 block group/art cursor-pointer"
+          title={release.smartUrl ? 'Stream on Feature.fm (ffem.bio)' : release.title}
+        >
           <SmartImage
             key={release.coverImage || release.id}
             src={release.coverImage}
@@ -70,8 +76,22 @@ export const ReleaseCard: React.FC<ReleaseCardProps> = ({
                 Featured
               </span>
             )}
+            {release.smartUrl && (
+              <span className="px-2.5 py-0.5 rounded-full text-[9px] font-bold tracking-[0.15em] uppercase bg-pink-500/80 backdrop-blur-md text-white shadow-sm">
+                ffem.bio
+              </span>
+            )}
           </div>
-        </div>
+
+          {release.smartUrl && (
+            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/art:opacity-100 transition-opacity duration-300 flex items-center justify-center">
+              <span className="px-3.5 py-1.5 rounded-full bg-white/90 text-black text-[11px] font-bold uppercase tracking-wider flex items-center space-x-1.5 shadow-xl">
+                <span>Stream ffem.bio</span>
+                <ExternalLink className="w-3 h-3" />
+              </span>
+            </div>
+          )}
+        </a>
 
         {/* Info Body */}
         <div className="p-6 sm:p-7">
@@ -92,6 +112,21 @@ export const ReleaseCard: React.FC<ReleaseCardProps> = ({
 
           {/* Streaming Platform Pill Buttons with Authentic Brand Logos */}
           <div className="flex flex-wrap gap-2 pt-2">
+            {/* Primary Feature.fm / ffem.bio Direct Button */}
+            {release.smartUrl && (
+              <a
+                href={release.smartUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center space-x-1.5 px-3.5 py-1.5 rounded-full text-xs font-bold tracking-wider uppercase border border-pink-500/40 bg-gradient-to-r from-pink-500/20 to-purple-500/20 hover:from-pink-500 hover:to-purple-600 text-pink-300 hover:text-white transition-all duration-300 shadow-sm cursor-pointer"
+                title="Direct link to Feature.fm (ffem.bio)"
+              >
+                <Sparkles className="w-3 h-3 text-pink-300" />
+                <span>Stream (ffem.bio)</span>
+                <ExternalLink className="w-2.5 h-2.5" />
+              </a>
+            )}
+
             {dynamicLinks.map((link) => (
               <a
                 key={link.platform + link.name}

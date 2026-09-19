@@ -235,6 +235,38 @@ export const ReleaseSmartLinkPage: React.FC<ReleaseSmartLinkPageProps> = ({
 
         {/* 4. Streaming Platform Buttons List (The Core "Listen On" Experience) */}
         <div className="w-full space-y-2.5 mb-8">
+          {/* Top Hero Banner if Feature.fm / Smart Link is available */}
+          {release.smartUrl && (
+            <motion.a
+              href={release.smartUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              initial={{ opacity: 0, scale: 0.97 }}
+              animate={{ opacity: 1, scale: 1 }}
+              whileHover={{ scale: 1.015, y: -1 }}
+              whileTap={{ scale: 0.985 }}
+              className="w-full mb-3 p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-pink-500 via-purple-600 to-indigo-600 text-white shadow-xl shadow-pink-500/20 border border-white/20 flex items-center justify-between group cursor-pointer"
+            >
+              <div className="flex items-center space-x-3.5 min-w-0">
+                <div className="w-11 h-11 rounded-xl bg-white/20 flex items-center justify-center shrink-0">
+                  <Sparkles className="w-5 h-5 text-amber-300" />
+                </div>
+                <div className="min-w-0">
+                  <span className="block text-sm font-extrabold uppercase tracking-wider text-white truncate">
+                    Stream on Feature.fm (ffem.bio)
+                  </span>
+                  <span className="block text-xs text-white/80 font-light truncate">
+                    Direct access to Spotify, Apple, YouTube & more
+                  </span>
+                </div>
+              </div>
+              <div className="flex items-center space-x-1.5 px-4 py-2 rounded-xl bg-white text-black text-xs font-black tracking-wider uppercase shrink-0 group-hover:bg-neutral-100 transition-colors shadow-md">
+                <span>Open</span>
+                <ExternalLink className="w-3.5 h-3.5" />
+              </div>
+            </motion.a>
+          )}
+
           {platforms.length > 0 ? (
             platforms.map((item, index) => {
               const meta = getBrandMeta(item.platform || item.label);
@@ -287,7 +319,7 @@ export const ReleaseSmartLinkPage: React.FC<ReleaseSmartLinkPageProps> = ({
                 </motion.a>
               );
             })
-          ) : (
+          ) : release.smartUrl ? null : (
             <div className="p-6 rounded-2xl bg-white/5 border border-white/10 text-center text-xs text-neutral-400">
               No streaming links have been added yet for this release.
             </div>

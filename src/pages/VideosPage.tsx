@@ -1,8 +1,9 @@
 import React from 'react';
 import { MusicVideo } from '../types';
 import { VideoCard } from '../components/VideoCard';
-import { Film } from 'lucide-react';
+import { Film, Bell } from 'lucide-react';
 import { ScrollReveal } from '../components/ScrollReveal';
+import { YouTubeLogo } from '../components/BrandLogos';
 
 interface VideosPageProps {
   videos: MusicVideo[];
@@ -21,9 +22,21 @@ export const VideosPage: React.FC<VideosPageProps> = ({ videos, onPlayVideo }) =
           <h1 className="text-4xl sm:text-6xl font-extrabold tracking-tight text-white uppercase mb-6">
             Music Videos
           </h1>
-          <p className="text-base sm:text-lg text-neutral-400 font-light leading-relaxed">
+          <p className="text-base sm:text-lg text-neutral-400 font-light leading-relaxed mb-6">
             Official music videos, visualizers, and acoustic live studio sessions.
           </p>
+          <div className="flex justify-center">
+            <a
+              href="https://www.youtube.com/@tanbyr?sub_confirmation=1"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center space-x-2 px-6 py-3 rounded-full bg-[#FF0000] hover:bg-[#cc0000] text-white font-extrabold text-xs uppercase tracking-[0.2em] transition-all duration-300 shadow-lg shadow-[#FF0000]/25 hover:scale-105 cursor-pointer"
+            >
+              <YouTubeLogo className="w-4 h-4" />
+              <span>SUBSCRIBE ON YOUTUBE</span>
+              <Bell className="w-3.5 h-3.5 opacity-90" />
+            </a>
+          </div>
         </div>
       </ScrollReveal>
 

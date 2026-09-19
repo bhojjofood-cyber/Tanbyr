@@ -480,6 +480,8 @@ export const BrandIcon: React.FC<{
   return <IconComponent className={className} color={color} />;
 };
 
+export const BrandLogos = BrandIcon;
+
 export const SUPPORTED_SOCIAL_PLATFORMS = [
   { id: 'instagram', name: 'Instagram', defaultPlaceholder: 'https://instagram.com/yourhandle' },
   { id: 'spotify', name: 'Spotify Profile', defaultPlaceholder: 'https://open.spotify.com/artist/...' },

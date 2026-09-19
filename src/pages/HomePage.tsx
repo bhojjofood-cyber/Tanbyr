@@ -1,12 +1,13 @@
 import React from 'react';
 import { motion } from 'motion/react';
-import { Play, ArrowRight, Disc3, ExternalLink, Share2 } from 'lucide-react';
+import { Play, ArrowRight, Disc3, ExternalLink, Share2, Sparkles } from 'lucide-react';
 import { ArtistProfile, MusicRelease, MusicVideo, PhotoItem, SocialLinks } from '../types';
 import { VideoCard } from '../components/VideoCard';
 import { SocialIcons } from '../components/SocialIcons';
 import { ScrollReveal } from '../components/ScrollReveal';
 import { SmartImage } from '../components/SmartImage';
-import { BrandIcon, getBrandMeta } from '../components/BrandLogos';
+import { BrandIcon, getBrandMeta, SpotifyLogo, YouTubeLogo } from '../components/BrandLogos';
+import { FollowSubscribeSection } from '../components/FollowSubscribeSection';
 
 interface HomePageProps {
   artist: ArtistProfile;
@@ -111,6 +112,37 @@ export const HomePage: React.FC<HomePageProps> = ({
               </button>
             </div>
 
+            {/* Direct Artist Follow & Subscribe CTAs */}
+            <div className="flex flex-wrap items-center justify-center gap-3 mb-8">
+              <a
+                href={socials?.spotify || 'https://open.spotify.com/artist/7tUWUGzYWCzKKf7JwbhmP7?si=IuMN51JxTLyukUnWQ7jvDw'}
+                target="_blank"
+                rel="noopener noreferrer"
+                id="hero-spotify-follow-pill"
+                className="inline-flex items-center space-x-2 px-5 py-2.5 rounded-full bg-[#1DB954]/10 hover:bg-[#1DB954] border border-[#1DB954]/30 hover:border-[#1DB954] text-neutral-200 hover:text-black text-xs font-bold tracking-wider uppercase transition-all duration-300 group cursor-pointer shadow-lg shadow-[#1DB954]/10 hover:scale-105"
+              >
+                <SpotifyLogo className="w-4 h-4 text-[#1DB954] group-hover:text-black transition-colors" />
+                <span>Follow on Spotify</span>
+              </a>
+
+              <a
+                href={
+                  socials?.youtube
+                    ? socials.youtube.includes('sub_confirmation')
+                      ? socials.youtube
+                      : `${socials.youtube}${socials.youtube.includes('?') ? '&' : '?'}sub_confirmation=1`
+                    : 'https://www.youtube.com/@tanbyr?sub_confirmation=1'
+                }
+                target="_blank"
+                rel="noopener noreferrer"
+                id="hero-youtube-subscribe-pill"
+                className="inline-flex items-center space-x-2 px-5 py-2.5 rounded-full bg-[#FF0000]/10 hover:bg-[#FF0000] border border-[#FF0000]/30 hover:border-[#FF0000] text-neutral-200 hover:text-white text-xs font-bold tracking-wider uppercase transition-all duration-300 group cursor-pointer shadow-lg shadow-[#FF0000]/10 hover:scale-105"
+              >
+                <YouTubeLogo className="w-4 h-4 text-[#FF0000] group-hover:text-white transition-colors" />
+                <span>Subscribe on YouTube</span>
+              </a>
+            </div>
+
             {/* Hero Social / Streaming Icons */}
             {socials && (
               <div className="flex flex-col items-center">
@@ -145,11 +177,11 @@ export const HomePage: React.FC<HomePageProps> = ({
             <ScrollReveal direction="up" distance={25}>
               <div className="flex items-center justify-between mb-12">
                 <div>
-                  <span className="text-xs font-semibold tracking-[0.3em] uppercase text-neutral-400 block mb-1">
-                    Featured Music
+                  <span className="text-xs font-semibold tracking-[0.25em] uppercase text-amber-400 block mb-1">
+                    Latest Release
                   </span>
                   <h2 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-white uppercase">
-                    Latest Release
+                    Featured Music
                   </h2>
                 </div>
                 <button
@@ -166,7 +198,13 @@ export const HomePage: React.FC<HomePageProps> = ({
             <ScrollReveal direction="up" distance={35} delay={0.1}>
               <div className="bg-[#0e0e13] border border-white/10 rounded-3xl overflow-hidden p-6 sm:p-10 lg:p-12 shadow-2xl grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-14 items-center">
                 {/* Artwork */}
-                <div className="lg:col-span-5 relative aspect-square rounded-2xl overflow-hidden bg-black shadow-2xl group">
+                <a
+                  href={latestRelease.smartUrl || `/#/release/${latestRelease.slug || latestRelease.id}`}
+                  target={latestRelease.smartUrl ? '_blank' : undefined}
+                  rel={latestRelease.smartUrl ? 'noopener noreferrer' : undefined}
+                  className="lg:col-span-5 relative aspect-square rounded-2xl overflow-hidden bg-black shadow-2xl group block cursor-pointer"
+                  title={latestRelease.smartUrl ? 'Stream on Feature.fm (ffem.bio)' : 'View Release Details'}
+                >
                   <SmartImage
                     key={latestRelease.coverImage || latestRelease.id}
                     src={latestRelease.coverImage}
@@ -181,13 +219,21 @@ export const HomePage: React.FC<HomePageProps> = ({
                       {latestRelease.type} &middot; {latestReleaseYear}
                     </span>
                   </div>
-                </div>
+                  {latestRelease.smartUrl && (
+                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center">
+                      <span className="px-4 py-2 rounded-full bg-white/90 text-black text-xs font-bold uppercase tracking-wider flex items-center space-x-1.5 shadow-xl">
+                        <span>Stream ffem.bio</span>
+                        <ExternalLink className="w-3.5 h-3.5" />
+                      </span>
+                    </div>
+                  )}
+                </a>
 
                 {/* Details & Action */}
                 <div className="lg:col-span-7 flex flex-col justify-center space-y-6">
                   <div>
                     <span className="text-xs font-semibold tracking-[0.25em] text-neutral-400 uppercase block mb-2">
-                      Official Release &middot; {latestRelease.type}
+                      Official {latestRelease.type} &middot; {latestReleaseYear}
                     </span>
                     <h3 className="text-4xl sm:text-5xl font-black tracking-tight text-white uppercase">
                       {latestRelease.title}
@@ -211,7 +257,21 @@ export const HomePage: React.FC<HomePageProps> = ({
                     <span className="text-xs font-semibold tracking-[0.25em] text-neutral-400 uppercase block mb-3">
                       Stream &middot; Listen &middot; Download
                     </span>
-                    <div className="flex flex-wrap gap-3">
+                    <div className="flex flex-wrap gap-3 items-center">
+                      {/* Primary Feature.fm / ffem.bio Smart Link Button */}
+                      {latestRelease.smartUrl && (
+                        <a
+                          href={latestRelease.smartUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center space-x-2.5 px-6 py-3.5 rounded-full bg-gradient-to-r from-pink-500 via-purple-600 to-indigo-600 hover:from-pink-400 hover:to-indigo-500 text-white font-bold text-xs tracking-wider uppercase transition-all duration-300 shadow-lg shadow-pink-500/25 hover:shadow-pink-500/40 hover:scale-[1.02] cursor-pointer"
+                        >
+                          <Sparkles className="w-4 h-4 text-amber-300 animate-pulse" />
+                          <span>Stream on Feature.fm (ffem.bio)</span>
+                          <ExternalLink className="w-3.5 h-3.5" />
+                        </a>
+                      )}
+
                       {/* Dynamic Platforms (if populated) */}
                       {latestRelease.streamingPlatforms && latestRelease.streamingPlatforms.length > 0 ? (
                         latestRelease.streamingPlatforms
@@ -321,7 +381,10 @@ export const HomePage: React.FC<HomePageProps> = ({
         </section>
       )}
 
-      {/* 3. FEATURED MUSIC VIDEOS PREVIEW WITH SCROLL REVEAL */}
+      {/* 3. DEDICATED SPOTIFY FOLLOW & YOUTUBE SUBSCRIBE SECTION */}
+      <FollowSubscribeSection socials={socials} artistName={artist.name} />
+
+      {/* 4. FEATURED MUSIC VIDEOS PREVIEW WITH SCROLL REVEAL */}
       {featuredVideos.length > 0 && (
         <section id="featured-videos-section" className="py-24 px-6 sm:px-8 border-t border-white/5">
           <div className="max-w-7xl mx-auto">
