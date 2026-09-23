@@ -15,6 +15,7 @@ import {
 import { ArtistProfile, MusicRelease, StreamingPlatformLink } from '../types';
 import { getBrandMeta } from '../components/BrandLogos';
 import { SmartImage } from '../components/SmartImage';
+import { copyToClipboard } from '../lib/clipboard';
 
 interface ReleaseSmartLinkPageProps {
   release: MusicRelease;
@@ -102,35 +103,25 @@ export const ReleaseSmartLinkPage: React.FC<ReleaseSmartLinkPageProps> = ({
 
   const handleCopyLink = async () => {
     const url = getShareUrl();
-    try {
-      if (navigator.clipboard) {
-        await navigator.clipboard.writeText(url);
-      } else {
-        const input = document.createElement('input');
-        input.value = url;
-        document.body.appendChild(input);
-        input.select();
-        document.execCommand('copy');
-        document.body.removeChild(input);
-      }
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2500);
-    } catch {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2500);
-    }
+    await copyToClipboard(url);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2500);
   };
 
   const handleNativeShare = async () => {
     const shareUrl = getShareUrl();
-    if (navigator.share) {
+    if (typeof navigator !== 'undefined' && navigator.share) {
       try {
         await navigator.share({
           title: `${release.title} by ${artist.name}`,
           text: `Listen to "${release.title}" by ${artist.name} on your favorite music streaming platform:`,
           url: shareUrl,
         });
-      } catch {
+        return;
+      } catch (err: unknown) {
+        if (err && typeof err === 'object' && 'name' in err && (err as { name?: string }).name === 'AbortError') {
+          return;
+        }
         setShowShareModal(true);
       }
     } else {
@@ -180,7 +171,7 @@ export const ReleaseSmartLinkPage: React.FC<ReleaseSmartLinkPageProps> = ({
       <main className="relative z-10 w-full max-w-md mx-auto flex flex-col items-center">
         {/* Artist Profile Header Pill */}
         <div className="flex items-center space-x-2.5 mb-6 px-4 py-2 rounded-full bg-white/[0.04] border border-white/10 backdrop-blur-md">
-          {artist.profileImageUrl ? (
+          {artist.profileImageUrl && artist.profileImageUrl.trim() !== '' ? (
             <img
               src={artist.profileImageUrl}
               alt={artist.name}

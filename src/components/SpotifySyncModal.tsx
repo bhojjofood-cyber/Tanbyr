@@ -26,7 +26,7 @@ export const SpotifySyncModal: React.FC<SpotifySyncModalProps> = ({
   isOpen,
   onClose,
   onImportReleases,
-  defaultArtistUrl = 'https://open.spotify.com/artist/7tUWUGzYWCzKKf7JwbhmP7?si=IuMN51JxTLyukUnWQ7jvDw',
+  defaultArtistUrl = 'https://open.spotify.com/artist/7tUWUGzYWCzKKf7JwbhmP7?si=vqQIL_-HTRy_r8muY_r7Ng&utm_source=copy-link',
 }) => {
   const [spotifyUrl, setSpotifyUrl] = useState(defaultArtistUrl);
   const [isLoading, setIsLoading] = useState(false);
@@ -218,7 +218,7 @@ export const SpotifySyncModal: React.FC<SpotifySyncModalProps> = ({
               {/* Artist Card */}
               <div className="flex items-center justify-between p-4 rounded-xl bg-white/[0.03] border border-white/10">
                 <div className="flex items-center space-x-3">
-                  {syncData.artistImage ? (
+                  {syncData.artistImage && syncData.artistImage.trim() !== '' ? (
                     <img
                       src={syncData.artistImage}
                       alt={syncData.artistName || 'Artist'}
@@ -283,11 +283,17 @@ export const SpotifySyncModal: React.FC<SpotifySyncModalProps> = ({
                               onChange={() => toggleSelect(rel.id)}
                               className="w-4 h-4 rounded bg-neutral-900 border-white/30 text-[#1DB954] cursor-pointer shrink-0"
                             />
-                            <img
-                              src={rel.coverImage}
-                              alt={rel.title}
-                              className="w-12 h-12 rounded-lg object-cover border border-white/10 shrink-0"
-                            />
+                            {rel.coverImage && rel.coverImage.trim() !== '' ? (
+                              <img
+                                src={rel.coverImage}
+                                alt={rel.title}
+                                className="w-12 h-12 rounded-lg object-cover border border-white/10 shrink-0"
+                              />
+                            ) : (
+                              <div className="w-12 h-12 rounded-lg bg-white/10 flex items-center justify-center text-white shrink-0">
+                                <Music className="w-6 h-6 text-neutral-400" />
+                              </div>
+                            )}
                             <div className="min-w-0 flex-1">
                               <div className="flex items-center space-x-2">
                                 <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-white/10 text-white">

@@ -57,6 +57,8 @@ import { YouTubeSyncModal } from '../../components/YouTubeSyncModal';
 import { syncFromSpotify, syncFromYouTube, syncFromSmartLink } from '../../lib/mediaSyncClient';
 import { BrandLogos } from '../../components/BrandLogos';
 import { DeleteConfirmationModal } from '../../components/DeleteConfirmationModal';
+import { copyToClipboard } from '../../lib/clipboard';
+import { SmartImage } from '../../components/SmartImage';
 
 interface AdminDashboardPageProps {
   artist: ArtistProfile;
@@ -302,12 +304,10 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
     }
   };
 
-  const handleCopyReleaseBioLink = (rel: MusicRelease) => {
+  const handleCopyReleaseBioLink = async (rel: MusicRelease) => {
     const slug = rel.slug || rel.id;
     const url = `${window.location.origin}/#/release/${slug}`;
-    if (navigator.clipboard) {
-      navigator.clipboard.writeText(url);
-    }
+    await copyToClipboard(url);
     showToast(`Instagram bio link copied: /#/release/${slug}`);
   };
 
@@ -719,10 +719,13 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                   Currently Featured on Homepage
                 </span>
                 <div className="flex flex-col sm:flex-row items-center gap-6">
-                  <img
+                  <SmartImage
                     src={featuredRelease.coverImage}
                     alt={featuredRelease.title}
-                    className="w-24 h-24 sm:w-28 sm:h-28 rounded-xl object-cover border border-white/10"
+                    fallbackType="artwork"
+                    fallbackText={featuredRelease.title}
+                    containerClassName="w-24 h-24 sm:w-28 sm:h-28 rounded-xl border border-white/10 shrink-0 overflow-hidden"
+                    className="w-full h-full object-cover"
                   />
                   <div className="flex-1 text-center sm:text-left">
                     <h4 className="text-xl font-bold text-white uppercase">
@@ -1032,10 +1035,13 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                   className="bg-[#0c0c10] border border-white/10 rounded-2xl p-5 flex flex-col justify-between relative group"
                 >
                   <div className="flex items-start space-x-4">
-                    <img
-                      src={rel.coverImage || 'https://images.unsplash.com/photo-1614613535308-eb5fbd3d2c17?auto=format&fit=crop&w=400&q=80'}
+                    <SmartImage
+                      src={rel.coverImage}
                       alt={rel.title}
-                      className="w-20 h-20 rounded-xl object-cover border border-white/10 shrink-0"
+                      fallbackType="artwork"
+                      fallbackText={rel.title}
+                      containerClassName="w-20 h-20 rounded-xl border border-white/10 shrink-0 overflow-hidden"
+                      className="w-full h-full object-cover"
                     />
                     <div className="flex-1 min-w-0 pr-12">
                       <div className="flex items-center space-x-2">
@@ -1179,10 +1185,13 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                   key={vid.id}
                   className="bg-[#0c0c10] border border-white/10 rounded-2xl overflow-hidden relative group"
                 >
-                  <div className="aspect-video w-full relative bg-neutral-900">
-                    <img
+                  <div className="aspect-video w-full relative bg-neutral-900 overflow-hidden">
+                    <SmartImage
                       src={vid.thumbnailUrl}
                       alt={vid.title}
+                      fallbackType="generic"
+                      fallbackText={vid.title}
+                      containerClassName="w-full h-full"
                       className="w-full h-full object-cover"
                     />
                     {vid.featured && (
@@ -1281,7 +1290,14 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                   key={p.id}
                   className="group relative rounded-xl overflow-hidden bg-neutral-900 border border-white/10 aspect-[4/5]"
                 >
-                  <img key={p.imageUrl} src={p.imageUrl} alt={p.caption} className="w-full h-full object-cover" />
+                  <SmartImage
+                    src={p.imageUrl}
+                    alt={p.caption || 'Photograph'}
+                    fallbackType="photo"
+                    fallbackText={p.caption || 'Photograph'}
+                    containerClassName="w-full h-full"
+                    className="w-full h-full object-cover"
+                  />
                   <div className="absolute inset-0 bg-black/75 opacity-0 group-hover:opacity-100 transition-opacity p-3 flex flex-col justify-between">
                     <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded bg-white/20 text-white w-fit">
                       {p.category}
@@ -1450,8 +1466,8 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                   firestore.rules (Production Ready)
                 </span>
                 <button
-                  onClick={() => {
-                    navigator.clipboard.writeText(`rules_version = '2';
+                  onClick={async () => {
+                    await copyToClipboard(`rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     function isAuthenticated() { return request.auth != null; }
@@ -2080,7 +2096,7 @@ service cloud.firestore {
         isOpen={isSpotifySyncOpen}
         onClose={() => setIsSpotifySyncOpen(false)}
         onImportReleases={handleImportSpotifyReleases}
-        defaultArtistUrl={socialForm.spotify || 'https://open.spotify.com/artist/7tUWUGzYWCzKKf7JwbhmP7?si=IuMN51JxTLyukUnWQ7jvDw'}
+        defaultArtistUrl={socialForm.spotify || 'https://open.spotify.com/artist/7tUWUGzYWCzKKf7JwbhmP7?si=vqQIL_-HTRy_r8muY_r7Ng&utm_source=copy-link'}
       />
 
       {/* ---------------------------------------------------- */}
@@ -2090,7 +2106,7 @@ service cloud.firestore {
         isOpen={isYouTubeSyncOpen}
         onClose={() => setIsYouTubeSyncOpen(false)}
         onImportVideos={handleImportYouTubeVideos}
-        defaultChannelInput={socialForm.youtube || '@tanbyr'}
+        defaultChannelInput={socialForm.youtube || '@tanbyrmusic'}
       />
 
       {/* ---------------------------------------------------- */}

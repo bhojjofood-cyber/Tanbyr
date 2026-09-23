@@ -25,7 +25,7 @@ export const YouTubeSyncModal: React.FC<YouTubeSyncModalProps> = ({
   isOpen,
   onClose,
   onImportVideos,
-  defaultChannelInput = '@tanbyr',
+  defaultChannelInput = '@tanbyrmusic',
 }) => {
   const [channelInput, setChannelInput] = useState(defaultChannelInput);
   const [videoUrlsInput, setVideoUrlsInput] = useState('');
@@ -170,7 +170,7 @@ export const YouTubeSyncModal: React.FC<YouTubeSyncModalProps> = ({
                 type="text"
                 value={channelInput}
                 onChange={(e) => setChannelInput(e.target.value)}
-                placeholder="@tanbyr or https://www.youtube.com/@tanbyr"
+                placeholder="@tanbyrmusic or https://youtube.com/@tanbyrmusic"
                 className="w-full pl-4 pr-4 py-3 rounded-xl bg-[#14141a] border border-white/15 text-white text-xs focus:outline-none focus:border-[#FF0000] transition-colors flex-1"
               />
               <button
@@ -284,11 +284,17 @@ export const YouTubeSyncModal: React.FC<YouTubeSyncModalProps> = ({
                           onChange={() => toggleSelect(vid.id)}
                           className="w-4 h-4 rounded bg-neutral-900 border-white/30 text-[#FF0000] cursor-pointer shrink-0"
                         />
-                        <img
-                          src={vid.thumbnailUrl}
-                          alt={vid.title}
-                          className="w-16 h-10 rounded-lg object-cover border border-white/10 shrink-0"
-                        />
+                        {vid.thumbnailUrl && vid.thumbnailUrl.trim() !== '' ? (
+                          <img
+                            src={vid.thumbnailUrl}
+                            alt={vid.title}
+                            className="w-16 h-10 rounded-lg object-cover border border-white/10 shrink-0"
+                          />
+                        ) : (
+                          <div className="w-16 h-10 rounded-lg bg-white/10 flex items-center justify-center text-white shrink-0">
+                            <span className="text-[9px] uppercase font-bold text-neutral-400">Video</span>
+                          </div>
+                        )}
                         <div className="min-w-0 flex-1">
                           <h5 className="text-xs font-bold text-white truncate">
                             {vid.title}

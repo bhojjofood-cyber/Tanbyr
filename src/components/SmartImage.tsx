@@ -35,7 +35,7 @@ export const SmartImage: React.FC<SmartImageProps> = ({
 
   // When src changes, immediately reset loaded state so stale image doesn't linger
   useEffect(() => {
-    if (!src) {
+    if (!src || typeof src !== 'string' || src.trim() === '') {
       setLoaded(false);
       setError(true);
       return;
@@ -44,7 +44,7 @@ export const SmartImage: React.FC<SmartImageProps> = ({
     setError(false);
   }, [src]);
 
-  const hasValidSrc = Boolean(src && src.trim() !== '');
+  const hasValidSrc = Boolean(src && typeof src === 'string' && src.trim() !== '');
 
   // Render fallback placeholder when there's no src or image failed to load
   const renderFallback = () => {
@@ -131,7 +131,7 @@ export const SmartImage: React.FC<SmartImageProps> = ({
               setLoaded(true);
             }
           }}
-          src={src!}
+          src={hasValidSrc && src ? src : undefined}
           alt={alt}
           loading={priority ? 'eager' : 'lazy'}
           fetchPriority={priority ? 'high' : 'auto'}

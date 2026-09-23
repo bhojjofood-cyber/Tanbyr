@@ -105,7 +105,14 @@ export default function App() {
   });
   const [socials, setSocials] = useState<SocialLinks>(() => {
     const cached = getInitialLocalState<SocialLinks>('tanbyr_social_links', initialSocialLinks);
-    return { ...initialSocialLinks, ...(cached || {}) };
+    const combined = { ...initialSocialLinks, ...(cached || {}) };
+    if (!combined.youtube || combined.youtube === 'https://www.youtube.com/@tanbyr' || combined.youtube === 'https://youtube.com/@tanbyr') {
+      combined.youtube = 'https://youtube.com/@tanbyrmusic';
+    }
+    if (!combined.spotify || combined.spotify.includes('IuMN51JxTLyukUnWQ7jvDw') || combined.spotify.includes('placeholder')) {
+      combined.spotify = 'https://open.spotify.com/artist/7tUWUGzYWCzKKf7JwbhmP7?si=vqQIL_-HTRy_r8muY_r7Ng&utm_source=copy-link';
+    }
+    return combined;
   });
   const [settings, setSettings] = useState<SiteSettings>(() => {
     const cached = getInitialLocalState<SiteSettings>('tanbyr_site_settings', initialSiteSettings);
@@ -377,8 +384,10 @@ export default function App() {
           <HomePage
             artist={artist}
             latestRelease={latestRelease}
+            releases={releases}
             featuredVideos={featuredVideos}
             featuredPhotos={featuredPhotos}
+            socials={socials}
             onNavigate={navigate}
             onPlayVideo={(v) => setActiveVideo(v)}
             onOpenLyrics={(r) => setActiveLyricsRelease(r)}
@@ -389,6 +398,7 @@ export default function App() {
           <MusicPage
             releases={releases}
             onOpenLyrics={(r) => setActiveLyricsRelease(r)}
+            socials={socials}
           />
         )}
 
@@ -396,6 +406,7 @@ export default function App() {
           <VideosPage
             videos={videos}
             onPlayVideo={(v) => setActiveVideo(v)}
+            socials={socials}
           />
         )}
 

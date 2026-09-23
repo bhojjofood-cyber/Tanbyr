@@ -15,7 +15,7 @@ export const FollowSubscribeSection: React.FC<FollowSubscribeSectionProps> = ({
 }) => {
   const spotifyUrl =
     socials?.spotify ||
-    'https://open.spotify.com/artist/7tUWUGzYWCzKKf7JwbhmP7?si=IuMN51JxTLyukUnWQ7jvDw';
+    'https://open.spotify.com/artist/7tUWUGzYWCzKKf7JwbhmP7?si=vqQIL_-HTRy_r8muY_r7Ng&utm_source=copy-link';
 
   // Include YouTube sub_confirmation parameter for instant one-click subscription prompt
   const youtubeUrl =
@@ -23,7 +23,11 @@ export const FollowSubscribeSection: React.FC<FollowSubscribeSectionProps> = ({
       ? socials.youtube.includes('sub_confirmation')
         ? socials.youtube
         : `${socials.youtube}${socials.youtube.includes('?') ? '&' : '?'}sub_confirmation=1`
-      : 'https://www.youtube.com/@tanbyr?sub_confirmation=1');
+      : 'https://youtube.com/@tanbyrmusic?sub_confirmation=1');
+
+  const youtubeHandle = socials?.youtube
+    ? (socials.youtube.match(/@[\w.-]+/)?.[0] || '@tanbyrmusic')
+    : '@tanbyrmusic';
 
   return (
     <section
@@ -120,7 +124,7 @@ export const FollowSubscribeSection: React.FC<FollowSubscribeSectionProps> = ({
 
                 <h3 className="text-2xl font-bold text-white uppercase tracking-wider mb-2 flex items-center space-x-2">
                   <span>YouTube</span>
-                  <span className="text-sm text-[#FF0000] font-semibold tracking-normal normal-case">&middot; @tanbyr</span>
+                  <span className="text-sm text-[#FF0000] font-semibold tracking-normal normal-case">&middot; {youtubeHandle}</span>
                 </h3>
 
                 <p className="text-neutral-400 text-sm leading-relaxed mb-6 font-light">

@@ -1,8 +1,9 @@
 import React from 'react';
-import { FileText, ExternalLink, Share2, Disc, Sparkles } from 'lucide-react';
+import { FileText, ExternalLink, Share2, Disc, Sparkles, Flame } from 'lucide-react';
 import { MusicRelease } from '../types';
 import { SmartImage } from './SmartImage';
 import { BrandIcon, getBrandMeta } from './BrandLogos';
+import { isReleaseInFuture } from './CountdownTimer';
 
 interface ReleaseCardProps {
   release: MusicRelease;
@@ -71,6 +72,12 @@ export const ReleaseCard: React.FC<ReleaseCardProps> = ({
             <span className="px-3 py-1 rounded-full text-[10px] font-bold tracking-[0.2em] uppercase bg-black/70 backdrop-blur-md text-white border border-white/10">
               {release.type}
             </span>
+            {isReleaseInFuture(release) && (
+              <span className="px-2.5 py-1 rounded-full text-[10px] font-bold tracking-[0.2em] uppercase bg-amber-500 text-black font-extrabold shadow-md flex items-center space-x-1 animate-pulse">
+                <Flame className="w-3 h-3 fill-black text-black" />
+                <span>Upcoming</span>
+              </span>
+            )}
             {release.featured && (
               <span className="px-3 py-1 rounded-full text-[10px] font-bold tracking-[0.2em] uppercase bg-white text-black">
                 Featured
@@ -166,7 +173,8 @@ export const ReleaseCard: React.FC<ReleaseCardProps> = ({
 
         {release.releaseDate && (
           <span className="text-[11px] text-neutral-400 tracking-wider">
-            Released {release.releaseDate}
+            {isReleaseInFuture(release) ? 'Premiere ' : 'Released '}
+            {release.releaseDate}
           </span>
         )}
       </div>

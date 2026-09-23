@@ -44,12 +44,18 @@ export const PhotoLightbox: React.FC<PhotoLightboxProps> = ({ photo, onClose }) 
         className="max-w-5xl max-h-[90vh] flex flex-col items-center"
         onClick={(e) => e.stopPropagation()}
       >
-        <img
-          key={photo.imageUrl}
-          src={photo.imageUrl}
-          alt={photo.caption || 'TANBYR Photography'}
-          className="max-h-[75vh] w-auto max-w-full object-contain rounded-lg shadow-2xl border border-white/10"
-        />
+        {photo.imageUrl && photo.imageUrl.trim() !== '' ? (
+          <img
+            key={photo.imageUrl}
+            src={photo.imageUrl}
+            alt={photo.caption || 'TANBYR Photography'}
+            className="max-h-[75vh] w-auto max-w-full object-contain rounded-lg shadow-2xl border border-white/10"
+          />
+        ) : (
+          <div className="w-80 h-80 bg-[#0c0c11] border border-white/10 rounded-lg flex items-center justify-center text-neutral-500 text-sm">
+            Photograph unavailable
+          </div>
+        )}
 
         <div className="mt-4 text-center max-w-xl">
           <div className="flex items-center justify-center space-x-4 mb-2">

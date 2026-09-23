@@ -282,6 +282,32 @@ export async function getReleases(): Promise<MusicRelease[]> {
   }
   const local = getLocalItem<MusicRelease[]>(STORAGE_KEYS.RELEASES, initialReleases)
     .filter(r => !deletedIds.has(r.id));
+
+  // If local list doesn't have an upcoming future release, incorporate any non-deleted upcoming release from initialReleases
+  const now = Date.now();
+  const hasFutureRelease = local.some(r => {
+    if (!r.releaseDate) return false;
+    const t = new Date(r.releaseDate.includes('T') ? r.releaseDate : `${r.releaseDate}T00:00:00`).getTime();
+    return !isNaN(t) && t > now;
+  });
+
+  if (!hasFutureRelease) {
+    const upcomingFromInitial = initialReleases.filter(r => {
+      if (deletedIds.has(r.id)) return false;
+      const t = new Date(r.releaseDate.includes('T') ? r.releaseDate : `${r.releaseDate}T00:00:00`).getTime();
+      return !isNaN(t) && t > now;
+    });
+
+    if (upcomingFromInitial.length > 0) {
+      for (const upcoming of upcomingFromInitial) {
+        if (!local.some(l => l.id === upcoming.id)) {
+          local.unshift(upcoming);
+        }
+      }
+      setLocalItem(STORAGE_KEYS.RELEASES, local, false);
+    }
+  }
+
   return [...local].sort((a, b) => new Date(b.releaseDate).getTime() - new Date(a.releaseDate).getTime());
 }
 
@@ -514,6 +540,29 @@ export async function clearDemoPhotos(): Promise<void> {
   setLocalItem(STORAGE_KEYS.PHOTOS, remaining, true);
 }
 
+// Helper to ensure official channels always reflect the latest verified URLs
+function sanitizeSocialLinks(links: SocialLinks): SocialLinks {
+  const updated: SocialLinks = { ...links };
+  if (!updated.youtube || updated.youtube === 'https://www.youtube.com/@tanbyr' || updated.youtube === 'https://youtube.com/@tanbyr') {
+    updated.youtube = 'https://youtube.com/@tanbyrmusic';
+  }
+  if (!updated.spotify || updated.spotify.includes('IuMN51JxTLyukUnWQ7jvDw') || updated.spotify.includes('placeholder')) {
+    updated.spotify = 'https://open.spotify.com/artist/7tUWUGzYWCzKKf7JwbhmP7?si=vqQIL_-HTRy_r8muY_r7Ng&utm_source=copy-link';
+  }
+  if (Array.isArray(updated.customLinks)) {
+    updated.customLinks = updated.customLinks.map((link) => {
+      if (link.platform === 'youtube' && (link.url === 'https://www.youtube.com/@tanbyr' || link.url === 'https://youtube.com/@tanbyr' || !link.url)) {
+        return { ...link, url: 'https://youtube.com/@tanbyrmusic' };
+      }
+      if (link.platform === 'spotify' && (link.url.includes('IuMN51JxTLyukUnWQ7jvDw') || link.url.includes('placeholder') || !link.url)) {
+        return { ...link, url: 'https://open.spotify.com/artist/7tUWUGzYWCzKKf7JwbhmP7?si=vqQIL_-HTRy_r8muY_r7Ng&utm_source=copy-link' };
+      }
+      return link;
+    });
+  }
+  return updated;
+}
+
 // SOCIAL LINKS
 export async function getSocialLinks(): Promise<SocialLinks> {
   if (db) {
@@ -521,7 +570,7 @@ export async function getSocialLinks(): Promise<SocialLinks> {
       const docRef = doc(db, 'socialLinks', 'default');
       const snap = await getDoc(docRef);
       if (snap.exists() && snap.data()) {
-        const remote = { ...initialSocialLinks, ...(snap.data() as SocialLinks) };
+        const remote = sanitizeSocialLinks({ ...initialSocialLinks, ...(snap.data() as SocialLinks) });
         setLocalItem(STORAGE_KEYS.SOCIAL, remote, false);
         return remote;
       }
@@ -540,7 +589,7 @@ export async function getSocialLinks(): Promise<SocialLinks> {
     }
   }
   const local = getLocalItem<SocialLinks>(STORAGE_KEYS.SOCIAL, initialSocialLinks);
-  return { ...initialSocialLinks, ...(local || {}) };
+  return sanitizeSocialLinks({ ...initialSocialLinks, ...(local || {}) });
 }
 
 export async function updateSocialLinks(links: SocialLinks): Promise<void> {

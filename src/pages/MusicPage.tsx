@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { MusicRelease } from '../types';
+import { MusicRelease, SocialLinks } from '../types';
 import { ReleaseCard } from '../components/ReleaseCard';
 import { Disc3, Search, ExternalLink } from 'lucide-react';
 import { ScrollReveal } from '../components/ScrollReveal';
@@ -8,9 +8,10 @@ import { SpotifyLogo } from '../components/BrandLogos';
 interface MusicPageProps {
   releases: MusicRelease[];
   onOpenLyrics: (release: MusicRelease) => void;
+  socials?: SocialLinks;
 }
 
-export const MusicPage: React.FC<MusicPageProps> = ({ releases, onOpenLyrics }) => {
+export const MusicPage: React.FC<MusicPageProps> = ({ releases, onOpenLyrics, socials }) => {
   const [activeFilter, setActiveFilter] = useState<'ALL' | 'SINGLE' | 'EP' | 'ALBUM'>('ALL');
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -45,7 +46,7 @@ export const MusicPage: React.FC<MusicPageProps> = ({ releases, onOpenLyrics }) 
           </p>
           <div className="flex justify-center">
             <a
-              href="https://open.spotify.com/artist/7tUWUGzYWCzKKf7JwbhmP7?si=IuMN51JxTLyukUnWQ7jvDw"
+              href={socials?.spotify || 'https://open.spotify.com/artist/7tUWUGzYWCzKKf7JwbhmP7?si=vqQIL_-HTRy_r8muY_r7Ng&utm_source=copy-link'}
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center space-x-2 px-6 py-3 rounded-full bg-[#1DB954] hover:bg-[#1ed760] text-black font-extrabold text-xs uppercase tracking-[0.2em] transition-all duration-300 shadow-lg shadow-[#1DB954]/25 hover:scale-105 cursor-pointer"

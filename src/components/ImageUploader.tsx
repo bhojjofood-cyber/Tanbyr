@@ -212,7 +212,7 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({
       )}
 
       {/* Instant Active Image Preview (Strictly key-bound to prevent lingering stale image) */}
-      {value && value.trim() !== '' && (
+      {value && value.trim() !== '' ? (
         <div className="flex items-start space-x-4 pt-1">
           <div
             className={`relative rounded-xl overflow-hidden border border-white/15 bg-neutral-950 w-full ${getAspectClass()}`}
@@ -256,7 +256,7 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({
             </span>
           </div>
         </div>
-      )}
+      ) : null}
 
       {helperText && (
         <p className="text-[11px] text-neutral-500 font-light">{helperText}</p>
