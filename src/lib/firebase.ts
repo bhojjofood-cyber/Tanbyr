@@ -237,6 +237,36 @@ function removeDeletedId(key: string, id: string): void {
   } catch {}
 }
 
+// Helper to normalize release types ensuring backward compatibility
+export function normalizeRelease(rel: any): MusicRelease {
+  let releaseType: 'single' | 'ep' | 'album' = 'single';
+  if (rel.releaseType) {
+    const rt = String(rel.releaseType).toLowerCase();
+    if (rt === 'ep') releaseType = 'ep';
+    else if (rt === 'album') releaseType = 'album';
+    else releaseType = 'single';
+  } else if (rel.type) {
+    const t = String(rel.type).toLowerCase();
+    if (t === 'ep') releaseType = 'ep';
+    else if (t === 'album') releaseType = 'album';
+    else releaseType = 'single';
+  }
+
+  const displayType: 'Single' | 'EP' | 'Album' =
+    releaseType === 'ep' ? 'EP' : releaseType === 'album' ? 'Album' : 'Single';
+
+  return {
+    ...rel,
+    type: displayType,
+    releaseType,
+    releaseDate: rel.releaseDate || new Date().toISOString().split('T')[0],
+    coverImage: rel.coverImage || '',
+    description: rel.description || '',
+    featured: Boolean(rel.featured),
+    tracks: Array.isArray(rel.tracks) ? rel.tracks : undefined,
+  } as MusicRelease;
+}
+
 // RELEASES
 export async function getReleases(): Promise<MusicRelease[]> {
   const deletedIds = getDeletedIds(DELETED_RELEASES_KEY);
@@ -247,10 +277,10 @@ export async function getReleases(): Promise<MusicRelease[]> {
       const snapshot = await getDocs(q);
       if (!snapshot.empty) {
         const items = snapshot.docs
-          .map(doc => ({
+          .map(doc => normalizeRelease({
             id: doc.id,
             ...doc.data()
-          })) as MusicRelease[];
+          }));
 
         // Filter out any release explicitly deleted by the user
         const activeItems = items.filter(r => !deletedIds.has(r.id));
@@ -261,7 +291,7 @@ export async function getReleases(): Promise<MusicRelease[]> {
       const hasSeeded = localStorage.getItem('tanbyr_releases_seeded_flag');
       if (!hasSeeded && deletedIds.size === 0) {
         localStorage.setItem('tanbyr_releases_seeded_flag', 'true');
-        const toSeed = initialReleases.filter(r => !deletedIds.has(r.id));
+        const toSeed = initialReleases.filter(r => !deletedIds.has(r.id)).map(normalizeRelease);
         try {
           for (const rel of toSeed) {
             await setDoc(doc(db, 'releases', rel.id), {
@@ -281,7 +311,8 @@ export async function getReleases(): Promise<MusicRelease[]> {
     }
   }
   const local = getLocalItem<MusicRelease[]>(STORAGE_KEYS.RELEASES, initialReleases)
-    .filter(r => !deletedIds.has(r.id));
+    .filter(r => !deletedIds.has(r.id))
+    .map(normalizeRelease);
 
   // If local list doesn't have an upcoming future release, incorporate any non-deleted upcoming release from initialReleases
   const now = Date.now();
@@ -296,7 +327,7 @@ export async function getReleases(): Promise<MusicRelease[]> {
       if (deletedIds.has(r.id)) return false;
       const t = new Date(r.releaseDate.includes('T') ? r.releaseDate : `${r.releaseDate}T00:00:00`).getTime();
       return !isNaN(t) && t > now;
-    });
+    }).map(normalizeRelease);
 
     if (upcomingFromInitial.length > 0) {
       for (const upcoming of upcomingFromInitial) {
@@ -313,9 +344,10 @@ export async function getReleases(): Promise<MusicRelease[]> {
 
 export async function saveRelease(release: MusicRelease): Promise<void> {
   removeDeletedId(DELETED_RELEASES_KEY, release.id);
+  const normalized = normalizeRelease(release);
   const releaseWithMetadata: MusicRelease = {
-    ...release,
-    createdAt: release.createdAt || new Date().toISOString(),
+    ...normalized,
+    createdAt: normalized.createdAt || new Date().toISOString(),
   };
 
   if (db) {

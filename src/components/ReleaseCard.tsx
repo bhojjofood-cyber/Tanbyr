@@ -9,11 +9,13 @@ interface ReleaseCardProps {
   release: MusicRelease;
   onOpenLyrics: (release: MusicRelease) => void;
   onPlayPreview?: (release: MusicRelease) => void;
+  onNavigate?: (path: string) => void;
 }
 
 export const ReleaseCard: React.FC<ReleaseCardProps> = ({
   release,
   onOpenLyrics,
+  onNavigate,
 }) => {
   const releaseYear = release.releaseDate
     ? new Date(release.releaseDate).getFullYear() || release.releaseDate
@@ -41,7 +43,18 @@ export const ReleaseCard: React.FC<ReleaseCardProps> = ({
           { platform: 'bandcamp', name: 'Stores', url: release.otherUrl, color: 'hover:border-white/50 hover:text-white' },
         ].filter((link) => Boolean(link.url && link.url.trim() !== '' && link.url !== '#'));
 
-  const releaseSmartLinkUrl = `/#/release/${release.slug || release.id}`;
+  const cleanReleaseUrl = `/release/${release.slug || release.id}`;
+
+  const handleCardClick = (e: React.MouseEvent) => {
+    if (release.smartUrl) {
+      // If Feature.fm smart link is configured, open in new tab
+      return;
+    }
+    if (onNavigate) {
+      e.preventDefault();
+      onNavigate(cleanReleaseUrl);
+    }
+  };
 
   return (
     <div
@@ -49,11 +62,12 @@ export const ReleaseCard: React.FC<ReleaseCardProps> = ({
       className="group bg-[#0d0d11] border border-white/10 rounded-2xl overflow-hidden hover:border-white/25 transition-all duration-500 flex flex-col justify-between"
     >
       <div>
-        {/* Cover Artwork with hover zoom and smart link routing */}
+        {/* Cover Artwork with hover zoom and clean release routing */}
         <a
-          href={release.smartUrl || releaseSmartLinkUrl}
+          href={release.smartUrl || cleanReleaseUrl}
           target={release.smartUrl ? '_blank' : undefined}
           rel={release.smartUrl ? 'noopener noreferrer' : undefined}
+          onClick={handleCardClick}
           className="relative aspect-square w-full overflow-hidden bg-neutral-900 block group/art cursor-pointer"
           title={release.smartUrl ? 'Stream on Feature.fm (ffem.bio)' : release.title}
         >
@@ -69,9 +83,14 @@ export const ReleaseCard: React.FC<ReleaseCardProps> = ({
 
           {/* Badges */}
           <div className="absolute top-4 left-4 flex flex-wrap gap-2 z-20">
-            <span className="px-3 py-1 rounded-full text-[10px] font-bold tracking-[0.2em] uppercase bg-black/70 backdrop-blur-md text-white border border-white/10">
-              {release.type}
+            <span className="px-3 py-1 rounded-full text-[10px] font-bold tracking-[0.2em] uppercase bg-black/80 backdrop-blur-md text-white border border-white/10 shadow-sm">
+              {(release.releaseType || release.type || 'Single').toUpperCase()}
             </span>
+            {release.tracks && release.tracks.length > 0 && (
+              <span className="px-2.5 py-1 rounded-full text-[10px] font-bold tracking-[0.15em] uppercase bg-white/15 backdrop-blur-md text-neutral-200 border border-white/10">
+                {release.tracks.length} {release.tracks.length === 1 ? 'Track' : 'Tracks'}
+              </span>
+            )}
             {isReleaseInFuture(release) && (
               <span className="px-2.5 py-1 rounded-full text-[10px] font-bold tracking-[0.2em] uppercase bg-amber-500 text-black font-extrabold shadow-md flex items-center space-x-1 animate-pulse">
                 <Flame className="w-3 h-3 fill-black text-black" />
@@ -79,7 +98,7 @@ export const ReleaseCard: React.FC<ReleaseCardProps> = ({
               </span>
             )}
             {release.featured && (
-              <span className="px-3 py-1 rounded-full text-[10px] font-bold tracking-[0.2em] uppercase bg-white text-black">
+              <span className="px-3 py-1 rounded-full text-[10px] font-bold tracking-[0.2em] uppercase bg-white text-black shadow-sm">
                 Featured
               </span>
             )}
@@ -103,7 +122,10 @@ export const ReleaseCard: React.FC<ReleaseCardProps> = ({
         {/* Info Body */}
         <div className="p-6 sm:p-7">
           <div className="flex items-baseline justify-between mb-2">
-            <h3 className="text-xl font-bold tracking-wider text-white uppercase group-hover:text-neutral-200 transition-colors">
+            <h3
+              onClick={handleCardClick}
+              className="text-xl font-bold tracking-wider text-white uppercase group-hover:text-neutral-200 transition-colors cursor-pointer"
+            >
               {release.title}
             </h3>
             <span className="text-xs tracking-widest text-neutral-400 uppercase font-medium">
@@ -148,14 +170,15 @@ export const ReleaseCard: React.FC<ReleaseCardProps> = ({
               </a>
             ))}
 
-            {/* Smart Landing Page button */}
+            {/* Dedicated Clean Release Page button */}
             <a
-              href={releaseSmartLinkUrl}
-              className="inline-flex items-center space-x-1 px-3 py-1.5 rounded-full text-xs font-bold tracking-wider uppercase bg-white/10 hover:bg-white/20 text-white transition-colors"
-              title="Open Smart Link Landing Page"
+              href={cleanReleaseUrl}
+              onClick={handleCardClick}
+              className="inline-flex items-center space-x-1 px-3 py-1.5 rounded-full text-xs font-bold tracking-wider uppercase bg-white/10 hover:bg-white/20 text-white transition-colors cursor-pointer"
+              title="Open dedicated release page"
             >
               <Share2 className="w-3 h-3 text-pink-400" />
-              <span>Smart Link</span>
+              <span>{release.releaseType === 'ep' || release.releaseType === 'album' ? 'Tracklist & Links' : 'Release Page'}</span>
             </a>
           </div>
         </div>

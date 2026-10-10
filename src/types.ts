@@ -26,10 +26,28 @@ export interface StreamingPlatformLink {
   actionText?: string; // 'Listen' | 'Play' | 'Stream' | 'Watch' | 'Buy';
 }
 
+export type ReleaseType = 'single' | 'ep' | 'album';
+
+export interface ReleaseTrack {
+  id: string;
+  trackNumber: number;
+  title: string;
+  duration?: string; // e.g. "3:42" or "03:42"
+  spotifyUrl?: string;
+  youtubeUrl?: string;
+  appleMusicUrl?: string;
+  isrc?: string;
+  previewAudioUrl?: string;
+}
+
 export interface MusicRelease {
   id: string;
   title: string;
   type: 'Single' | 'EP' | 'Album';
+  releaseType?: ReleaseType;
+  genre?: string;
+  isrc?: string;
+  upc?: string;
   releaseDate: string;
   coverImage: string;
   description: string;
@@ -48,6 +66,7 @@ export interface MusicRelease {
   credits?: string;
   featured: boolean;
   order?: number;
+  tracks?: ReleaseTrack[];
   createdAt?: string;
   updatedAt?: string;
 }

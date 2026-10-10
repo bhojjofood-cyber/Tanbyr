@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   ExternalLink,
@@ -11,16 +11,24 @@ import {
   Play,
   Disc3,
   Sparkles,
+  Clock,
+  Layers,
+  Tag,
+  ShieldCheck,
+  Flame,
 } from 'lucide-react';
 import { ArtistProfile, MusicRelease, StreamingPlatformLink } from '../types';
-import { getBrandMeta } from '../components/BrandLogos';
+import { BrandIcon, getBrandMeta } from '../components/BrandLogos';
 import { SmartImage } from '../components/SmartImage';
 import { copyToClipboard } from '../lib/clipboard';
+import { updateDocumentMetadata, generateReleaseSchema } from '../lib/seoUtils';
+import { isReleaseInFuture } from '../components/CountdownTimer';
 
 interface ReleaseSmartLinkPageProps {
   release: MusicRelease;
   artist: ArtistProfile;
-  onNavigate: (path: string) => void;
+  onNavigate?: (path: string) => void;
+  onBackHome?: () => void;
   onOpenLyrics?: (release: MusicRelease) => void;
 }
 
@@ -28,22 +36,58 @@ export const ReleaseSmartLinkPage: React.FC<ReleaseSmartLinkPageProps> = ({
   release,
   artist,
   onNavigate,
+  onBackHome,
   onOpenLyrics,
 }) => {
   const [copied, setCopied] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
   const [showLyricsInline, setShowLyricsInline] = useState(false);
 
+  const handleGoHome = () => {
+    if (onNavigate) {
+      onNavigate('/');
+    } else if (onBackHome) {
+      onBackHome();
+    } else {
+      window.location.href = '/';
+    }
+  };
+
+  const isMultiTrack = release.releaseType === 'ep' || release.releaseType === 'album';
+  const releaseTypeLabel = (release.releaseType || release.type || 'Single').toUpperCase();
+
+  const releaseSlug = release.slug || release.id;
+  const canonicalUrl = typeof window !== 'undefined'
+    ? `${window.location.origin}/release/${releaseSlug}`
+    : `https://tanbyr.com/release/${releaseSlug}`;
+
+  // Synchronize SEO & Schema.org JSON-LD structured data
+  useEffect(() => {
+    const pageTitle = `${release.title} (${releaseTypeLabel}) — ${artist.name} Official`;
+    const metaDesc =
+      release.description ||
+      `Official ${release.type} "${release.title}" by ${artist.name}. Stream on Spotify, Apple Music, and YouTube.`;
+    const ogType = isMultiTrack ? 'music.album' : 'music.song';
+    const schema = generateReleaseSchema(release, artist, canonicalUrl);
+
+    updateDocumentMetadata(
+      pageTitle,
+      metaDesc,
+      canonicalUrl,
+      release.coverImage,
+      ogType,
+      schema
+    );
+  }, [release, artist, canonicalUrl, isMultiTrack, releaseTypeLabel]);
+
   // Resolve active streaming platforms
   const getActivePlatforms = (): StreamingPlatformLink[] => {
-    // 1. If dynamic platforms were saved via (+) Plus icon, prioritize them!
     if (Array.isArray(release.streamingPlatforms) && release.streamingPlatforms.length > 0) {
       return release.streamingPlatforms.filter(
         (p) => Boolean(p.url && p.url.trim() !== '' && p.url !== '#')
       );
     }
 
-    // 2. Fallback to legacy fields so older releases also work seamlessly
     const fallbackList: StreamingPlatformLink[] = [];
     if (release.spotifyUrl && release.spotifyUrl !== '#') {
       fallbackList.push({
@@ -85,7 +129,7 @@ export const ReleaseSmartLinkPage: React.FC<ReleaseSmartLinkPageProps> = ({
       fallbackList.push({
         id: 'other',
         platform: 'bandcamp',
-        label: 'Bandcamp / Stores',
+        label: 'Stores & Downloads',
         url: release.otherUrl,
         actionText: 'Buy',
       });
@@ -95,27 +139,19 @@ export const ReleaseSmartLinkPage: React.FC<ReleaseSmartLinkPageProps> = ({
 
   const platforms = getActivePlatforms();
 
-  // Full shareable URL (works with hash router or standard path)
-  const getShareUrl = () => {
-    const origin = window.location.origin;
-    return `${origin}/#/release/${release.slug || release.id}`;
-  };
-
   const handleCopyLink = async () => {
-    const url = getShareUrl();
-    await copyToClipboard(url);
+    await copyToClipboard(canonicalUrl);
     setCopied(true);
     setTimeout(() => setCopied(false), 2500);
   };
 
   const handleNativeShare = async () => {
-    const shareUrl = getShareUrl();
     if (typeof navigator !== 'undefined' && navigator.share) {
       try {
         await navigator.share({
           title: `${release.title} by ${artist.name}`,
-          text: `Listen to "${release.title}" by ${artist.name} on your favorite music streaming platform:`,
-          url: shareUrl,
+          text: `Listen to "${release.title}" by ${artist.name} on all platforms:`,
+          url: canonicalUrl,
         });
         return;
       } catch (err: unknown) {
@@ -133,26 +169,27 @@ export const ReleaseSmartLinkPage: React.FC<ReleaseSmartLinkPageProps> = ({
     ? new Date(release.releaseDate).getFullYear() || release.releaseDate
     : '2026';
 
+  const tracks = release.tracks || [];
+
   return (
     <div className="relative min-h-screen bg-[#070709] text-white flex flex-col items-center justify-between px-4 py-8 sm:py-12 overflow-x-hidden selection:bg-white selection:text-black">
       {/* 1. Atmospheric Ambient Background from Artwork */}
       <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden">
         {release.coverImage && (
           <div
-            className="absolute -top-[10%] -left-[10%] w-[120%] h-[120%] bg-cover bg-center filter blur-[90px] opacity-25 brightness-50 scale-110"
+            className="absolute -top-[10%] -left-[10%] w-[120%] h-[120%] bg-cover bg-center filter blur-[95px] opacity-25 brightness-50 scale-110"
             style={{ backgroundImage: `url(${release.coverImage})` }}
           />
         )}
-        <div className="absolute inset-0 bg-gradient-to-b from-[#070709]/80 via-[#070709]/95 to-[#070709]" />
-        {/* Subtle radial glow */}
+        <div className="absolute inset-0 bg-gradient-to-b from-[#070709]/85 via-[#070709]/95 to-[#070709]" />
         <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 rounded-full bg-white/[0.02] blur-3xl" />
       </div>
 
-      {/* 2. Top Navigation Bar for Smart Link */}
-      <header className="relative z-10 w-full max-w-md mx-auto flex items-center justify-between mb-6">
+      {/* 2. Top Navigation Bar */}
+      <header className="relative z-10 w-full max-w-2xl mx-auto flex items-center justify-between mb-6">
         <button
-          onClick={() => onNavigate('/')}
-          className="inline-flex items-center space-x-2 px-3 py-1.5 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 text-xs font-semibold uppercase tracking-wider text-neutral-300 hover:text-white transition-colors cursor-pointer"
+          onClick={handleGoHome}
+          className="inline-flex items-center space-x-2 px-3.5 py-1.5 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 text-xs font-semibold uppercase tracking-wider text-neutral-300 hover:text-white transition-colors cursor-pointer"
         >
           <ArrowLeft className="w-3.5 h-3.5" />
           <span>Official Site</span>
@@ -160,16 +197,16 @@ export const ReleaseSmartLinkPage: React.FC<ReleaseSmartLinkPageProps> = ({
 
         <button
           onClick={handleNativeShare}
-          className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 text-xs font-semibold uppercase tracking-wider text-neutral-300 hover:text-white transition-colors cursor-pointer"
+          className="inline-flex items-center space-x-1.5 px-3.5 py-1.5 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 text-xs font-semibold uppercase tracking-wider text-neutral-300 hover:text-white transition-colors cursor-pointer"
         >
           <Share2 className="w-3.5 h-3.5" />
           <span>Share</span>
         </button>
       </header>
 
-      {/* 3. Main Center Smart Link Card */}
-      <main className="relative z-10 w-full max-w-md mx-auto flex flex-col items-center">
-        {/* Artist Profile Header Pill */}
+      {/* 3. Main Content Container */}
+      <main className="relative z-10 w-full max-w-2xl mx-auto flex flex-col items-center">
+        {/* Artist Header Badge */}
         <div className="flex items-center space-x-2.5 mb-6 px-4 py-2 rounded-full bg-white/[0.04] border border-white/10 backdrop-blur-md">
           {artist.profileImageUrl && artist.profileImageUrl.trim() !== '' ? (
             <img
@@ -188,16 +225,16 @@ export const ReleaseSmartLinkPage: React.FC<ReleaseSmartLinkPageProps> = ({
           <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
         </div>
 
-        {/* Artwork Showcase with subtle vinyl edge */}
+        {/* Cover Artwork Card */}
         <motion.div
           initial={{ opacity: 0, y: 20, scale: 0.95 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
           transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
-          className="relative w-64 sm:w-72 aspect-square rounded-2xl overflow-hidden shadow-2xl border border-white/15 bg-neutral-900 mb-6 group"
+          className="relative w-64 sm:w-80 aspect-square rounded-3xl overflow-hidden shadow-2xl border border-white/15 bg-neutral-900 mb-6 group"
         >
           <SmartImage
             src={release.coverImage}
-            alt={release.title}
+            alt={`${release.title} Cover Artwork`}
             priority={true}
             fallbackType="artwork"
             fallbackText={release.title}
@@ -205,34 +242,156 @@ export const ReleaseSmartLinkPage: React.FC<ReleaseSmartLinkPageProps> = ({
             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
           />
           <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
+
+          {/* Release Type Badge on Artwork */}
+          <div className="absolute top-3 left-3 flex flex-wrap gap-1.5 z-20">
+            <span className="px-3 py-1 rounded-full text-[10px] font-bold tracking-[0.2em] uppercase bg-black/80 backdrop-blur-md text-white border border-white/15">
+              {releaseTypeLabel}
+            </span>
+            {isReleaseInFuture(release) && (
+              <span className="px-2.5 py-1 rounded-full text-[10px] font-bold tracking-[0.2em] uppercase bg-amber-500 text-black font-extrabold flex items-center space-x-1 animate-pulse">
+                <Flame className="w-3 h-3 fill-black text-black" />
+                <span>Upcoming</span>
+              </span>
+            )}
+          </div>
         </motion.div>
 
-        {/* Release Title & Metadata */}
-        <div className="text-center px-4 mb-6">
+        {/* Release Metadata & Heading */}
+        <div className="text-center px-4 mb-6 w-full">
           <div className="inline-flex items-center space-x-2 mb-2">
             <span className="text-[10px] font-bold uppercase tracking-[0.25em] px-2.5 py-0.5 rounded-full bg-white/10 text-neutral-300 border border-white/10">
-              {release.type} &middot; {releaseYear}
+              Official {release.type} &middot; {releaseYear}
             </span>
+            {release.genre && (
+              <span className="text-[10px] font-bold uppercase tracking-[0.2em] px-2.5 py-0.5 rounded-full bg-amber-400/10 text-amber-300 border border-amber-400/20">
+                {release.genre}
+              </span>
+            )}
           </div>
 
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-wide uppercase mb-1 drop-shadow-md">
+          <h1 className="text-3xl sm:text-4xl font-extrabold text-white tracking-wide uppercase mb-2 drop-shadow-md">
             {release.title}
           </h1>
 
-          <p className="text-xs sm:text-sm text-neutral-400 font-light max-w-xs mx-auto">
-            Choose your preferred music platform to stream or listen
+          <p className="text-xs sm:text-sm text-neutral-300 font-medium">
+            By <span className="text-white font-bold">{artist.name}</span>
           </p>
+
+          {release.description && (
+            <p className="text-xs sm:text-sm text-neutral-400 font-light max-w-lg mx-auto mt-3 leading-relaxed">
+              {release.description}
+            </p>
+          )}
+
+          {release.releaseDate && (
+            <p className="text-[11px] text-neutral-500 font-mono tracking-wider uppercase mt-2">
+              Released: {release.releaseDate}
+            </p>
+          )}
         </div>
 
-        {/* 4. Streaming Platform Buttons List (The Core "Listen On" Experience) */}
+        {/* 4. TRACKLIST (Dedicated section for EP & Album or Multi-Track) */}
+        {isMultiTrack && tracks.length > 0 && (
+          <div className="w-full mb-8">
+            <div className="flex items-center justify-between mb-3 px-1">
+              <h2 className="text-xs font-bold uppercase tracking-[0.25em] text-neutral-300 flex items-center space-x-2">
+                <Music className="w-3.5 h-3.5 text-amber-400" />
+                <span>Tracklist ({tracks.length} Tracks)</span>
+              </h2>
+            </div>
+
+            <div className="space-y-2 rounded-2xl bg-white/[0.03] border border-white/10 p-3 sm:p-4 backdrop-blur-md">
+              {tracks.map((track, idx) => (
+                <div
+                  key={track.id || idx}
+                  className="p-3 rounded-xl bg-white/[0.02] hover:bg-white/[0.06] border border-white/5 hover:border-white/15 transition-all flex items-center justify-between gap-3 group"
+                >
+                  {/* Left: Track Index & Title */}
+                  <div className="flex items-center space-x-3 min-w-0 flex-1">
+                    <span className="w-6 h-6 rounded-md bg-white/5 border border-white/10 flex items-center justify-center text-[11px] font-mono font-bold text-amber-400 shrink-0">
+                      {String(track.trackNumber || idx + 1).padStart(2, '0')}
+                    </span>
+                    <div className="min-w-0">
+                      <h3 className="text-sm font-semibold text-white truncate group-hover:text-amber-200 transition-colors">
+                        {track.title}
+                      </h3>
+                      {track.isrc && (
+                        <span className="text-[10px] text-neutral-500 font-mono block">
+                          ISRC: {track.isrc}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Right: Duration & Track Streaming Links */}
+                  <div className="flex items-center space-x-2 shrink-0">
+                    {track.duration && (
+                      <span className="text-xs font-mono text-neutral-400 px-2 py-0.5 rounded bg-white/5">
+                        {track.duration}
+                      </span>
+                    )}
+
+                    {/* Individual Spotify track link */}
+                    {track.spotifyUrl && (
+                      <a
+                        href={track.spotifyUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="p-2 rounded-lg bg-emerald-500/10 hover:bg-emerald-500 text-emerald-400 hover:text-black border border-emerald-500/20 transition-all cursor-pointer"
+                        title={`Listen to "${track.title}" on Spotify`}
+                      >
+                        <BrandIcon platform="spotify" className="w-3.5 h-3.5" />
+                      </a>
+                    )}
+
+                    {/* Individual YouTube track link */}
+                    {track.youtubeUrl && (
+                      <a
+                        href={track.youtubeUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="p-2 rounded-lg bg-red-500/10 hover:bg-red-500 text-red-400 hover:text-white border border-red-500/20 transition-all cursor-pointer"
+                        title={`Watch "${track.title}" on YouTube`}
+                      >
+                        <BrandIcon platform="youtube" className="w-3.5 h-3.5" />
+                      </a>
+                    )}
+
+                    {/* Individual Apple Music track link */}
+                    {track.appleMusicUrl && (
+                      <a
+                        href={track.appleMusicUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="p-2 rounded-lg bg-pink-500/10 hover:bg-pink-500 text-pink-400 hover:text-black border border-pink-500/20 transition-all cursor-pointer"
+                        title={`Listen to "${track.title}" on Apple Music`}
+                      >
+                        <BrandIcon platform="appleMusic" className="w-3.5 h-3.5" />
+                      </a>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* 5. STREAMING & DOWNLOAD PLATFORMS (Album-level or Single-level) */}
         <div className="w-full space-y-2.5 mb-8">
-          {/* Top Hero Banner if Feature.fm / Smart Link is available */}
+          <div className="px-1 mb-2">
+            <h2 className="text-xs font-bold uppercase tracking-[0.25em] text-neutral-400">
+              Stream &middot; Listen &middot; Download
+            </h2>
+          </div>
+
+          {/* Primary Feature.fm / ffem.bio Smart Link Button */}
           {release.smartUrl && (
             <motion.a
               href={release.smartUrl}
               target="_blank"
               rel="noopener noreferrer"
-              initial={{ opacity: 0, scale: 0.97 }}
+              initial={{ opacity: 0, scale: 0.98 }}
               animate={{ opacity: 1, scale: 1 }}
               whileHover={{ scale: 1.015, y: -1 }}
               whileTap={{ scale: 0.985 }}
@@ -272,12 +431,11 @@ export const ReleaseSmartLinkPage: React.FC<ReleaseSmartLinkPageProps> = ({
                   rel="noopener noreferrer"
                   initial={{ opacity: 0, y: 15 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.15 + index * 0.06, duration: 0.4 }}
+                  transition={{ delay: 0.15 + index * 0.05, duration: 0.4 }}
                   whileHover={{ scale: 1.015, y: -1 }}
                   whileTap={{ scale: 0.985 }}
                   className="flex items-center justify-between p-3.5 sm:p-4 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] border border-white/10 hover:border-white/25 backdrop-blur-md transition-all duration-200 group cursor-pointer"
                 >
-                  {/* Left: Platform Logo + Brand Name */}
                   <div className="flex items-center space-x-3.5 min-w-0">
                     <div
                       className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 border border-white/10 group-hover:scale-105 transition-transform"
@@ -291,7 +449,7 @@ export const ReleaseSmartLinkPage: React.FC<ReleaseSmartLinkPageProps> = ({
                     </div>
 
                     <div className="min-w-0">
-                      <span className="block text-sm font-bold text-white tracking-wide truncate group-hover:text-white">
+                      <span className="block text-sm font-bold text-white tracking-wide truncate">
                         {item.label || meta.name}
                       </span>
                       <span className="block text-[11px] text-neutral-400 font-light truncate">
@@ -302,7 +460,6 @@ export const ReleaseSmartLinkPage: React.FC<ReleaseSmartLinkPageProps> = ({
                     </div>
                   </div>
 
-                  {/* Right: High-contrast Action Button */}
                   <div className="flex items-center space-x-1 px-4 py-2 rounded-lg bg-white text-black text-xs font-bold tracking-wider uppercase group-hover:bg-neutral-200 transition-colors shrink-0">
                     <span>{actionLabel}</span>
                     <ExternalLink className="w-3.5 h-3.5" />
@@ -317,7 +474,28 @@ export const ReleaseSmartLinkPage: React.FC<ReleaseSmartLinkPageProps> = ({
           )}
         </div>
 
-        {/* 5. Lyrics Option (if available) */}
+        {/* 6. Metadata Details: Credits, UPC, ISRC */}
+        {(release.credits || release.upc || release.isrc) && (
+          <div className="w-full mb-6 p-4 rounded-2xl bg-white/[0.02] border border-white/10 text-xs text-neutral-300 space-y-1.5">
+            {release.credits && (
+              <p className="font-light">
+                <strong className="font-semibold text-white uppercase tracking-wider text-[11px]">Credits:</strong> {release.credits}
+              </p>
+            )}
+            {release.upc && (
+              <p className="font-mono text-[11px] text-neutral-400">
+                <strong className="font-semibold text-neutral-300 uppercase tracking-wider">UPC / EAN:</strong> {release.upc}
+              </p>
+            )}
+            {!isMultiTrack && release.isrc && (
+              <p className="font-mono text-[11px] text-neutral-400">
+                <strong className="font-semibold text-neutral-300 uppercase tracking-wider">ISRC:</strong> {release.isrc}
+              </p>
+            )}
+          </div>
+        )}
+
+        {/* 7. Lyrics Option (if available) */}
         {release.lyricsText && (
           <div className="w-full mb-6">
             <button
@@ -347,7 +525,7 @@ export const ReleaseSmartLinkPage: React.FC<ReleaseSmartLinkPageProps> = ({
           </div>
         )}
 
-        {/* 6. Instagram Bio Share Banner */}
+        {/* 8. Clean SEO Share Banner */}
         <div className="w-full p-4 rounded-2xl bg-gradient-to-r from-pink-500/10 via-purple-500/10 to-blue-500/10 border border-white/10 backdrop-blur-md flex items-center justify-between mb-8">
           <div className="flex items-center space-x-3 min-w-0">
             <div className="w-8 h-8 rounded-full bg-pink-500/20 text-pink-400 flex items-center justify-center shrink-0">
@@ -355,10 +533,10 @@ export const ReleaseSmartLinkPage: React.FC<ReleaseSmartLinkPageProps> = ({
             </div>
             <div className="min-w-0">
               <span className="block text-xs font-bold text-white tracking-wide truncate">
-                Share this in your Instagram Bio
+                Share this release
               </span>
               <span className="block text-[11px] text-neutral-400 truncate">
-                One link to stream on all platforms
+                Clean URL: /release/{releaseSlug}
               </span>
             </div>
           </div>
@@ -382,16 +560,16 @@ export const ReleaseSmartLinkPage: React.FC<ReleaseSmartLinkPageProps> = ({
         </div>
       </main>
 
-      {/* 7. Footer: Official Website Return Link */}
-      <footer className="relative z-10 w-full max-w-md mx-auto pt-6 border-t border-white/10 text-center flex flex-col items-center space-y-2">
+      {/* 9. Footer: Official Website Return Link */}
+      <footer className="relative z-10 w-full max-w-2xl mx-auto pt-6 border-t border-white/10 text-center flex flex-col items-center space-y-2">
         <button
-          onClick={() => onNavigate('/')}
+          onClick={handleGoHome}
           className="text-xs font-bold uppercase tracking-[0.25em] text-neutral-400 hover:text-white transition-colors cursor-pointer"
         >
           &copy; {new Date().getFullYear()} {artist.name} &middot; Official Artist Website
         </button>
         <p className="text-[10px] text-neutral-500 font-light">
-          Powered by TANBYR Official SmartLink Engine
+          TANBYR Official Discography &amp; Releases
         </p>
       </footer>
 
@@ -407,7 +585,7 @@ export const ReleaseSmartLinkPage: React.FC<ReleaseSmartLinkPageProps> = ({
             >
               <div className="flex items-center justify-between">
                 <h3 className="text-sm font-bold text-white uppercase tracking-wider">
-                  Share Smart Link
+                  Share Release
                 </h3>
                 <button
                   onClick={() => setShowShareModal(false)}
@@ -418,14 +596,14 @@ export const ReleaseSmartLinkPage: React.FC<ReleaseSmartLinkPageProps> = ({
               </div>
 
               <p className="text-xs text-neutral-300 font-light leading-relaxed">
-                Copy this link to put in your Instagram bio, TikTok bio, or send in messages:
+                Copy this clean URL to share on Instagram, YouTube, TikTok, or send in messages:
               </p>
 
               <div className="flex items-center space-x-2 p-2 rounded-xl bg-black border border-white/10">
                 <input
                   type="text"
                   readOnly
-                  value={getShareUrl()}
+                  value={canonicalUrl}
                   className="w-full bg-transparent text-xs text-neutral-300 px-2 focus:outline-none font-mono"
                 />
                 <button
@@ -439,7 +617,7 @@ export const ReleaseSmartLinkPage: React.FC<ReleaseSmartLinkPageProps> = ({
               <div className="flex items-center justify-center space-x-3 pt-2">
                 <a
                   href={`https://api.whatsapp.com/send?text=${encodeURIComponent(
-                    `Listen to ${release.title} by ${artist.name}: ${getShareUrl()}`
+                    `Listen to ${release.title} (${releaseTypeLabel}) by ${artist.name}: ${canonicalUrl}`
                   )}`}
                   target="_blank"
                   rel="noopener noreferrer"
@@ -450,7 +628,7 @@ export const ReleaseSmartLinkPage: React.FC<ReleaseSmartLinkPageProps> = ({
                 <a
                   href={`https://twitter.com/intent/tweet?text=${encodeURIComponent(
                     `Listen to "${release.title}" by @${artist.name}:`
-                  )}&url=${encodeURIComponent(getShareUrl())}`}
+                  )}&url=${encodeURIComponent(canonicalUrl)}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="flex-1 py-2 rounded-xl bg-white/10 hover:bg-white/20 border border-white/20 text-white text-xs font-semibold text-center transition-colors"

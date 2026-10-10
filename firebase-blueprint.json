@@ -24,6 +24,11 @@
       "properties": {
         "title": { "type": "string" },
         "type": { "type": "string" },
+        "releaseType": { "type": "string", "enum": ["single", "ep", "album"] },
+        "genre": { "type": "string" },
+        "isrc": { "type": "string" },
+        "upc": { "type": "string" },
+        "tracks": { "type": "array" },
         "releaseDate": { "type": "string" },
         "coverImage": { "type": "string" },
         "description": { "type": "string" },

@@ -1,13 +1,18 @@
-# robots.txt for TANBYR Official Artist Website
+# robots.txt for TANBYR Official Artist Website (https://tanbyr.xyz)
 User-agent: *
 Allow: /
 Allow: /music
+Allow: /release/
 Allow: /videos
 Allow: /photos
 Allow: /about
 
-# Disallow secure admin portal from indexing
+# Disallow secure admin backend
+Disallow: /admin
+Disallow: /admin/*
 Disallow: /admintanbyr
 Disallow: /admintanbyr/*
 
+# Official XML Sitemaps
+Sitemap: https://tanbyr.xyz/sitemap.xml
 Sitemap: https://tanbyr.com/sitemap.xml

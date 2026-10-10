@@ -52,6 +52,7 @@ import { initialSocialLinks } from '../../lib/seedData';
 import { ImageUploader } from '../../components/ImageUploader';
 import { SocialLinksManager } from '../../components/SocialLinksManager';
 import { StreamingPlatformsManager } from '../../components/StreamingPlatformsManager';
+import { TracklistManager } from '../../components/TracklistManager';
 import { SpotifySyncModal } from '../../components/SpotifySyncModal';
 import { YouTubeSyncModal } from '../../components/YouTubeSyncModal';
 import { syncFromSpotify, syncFromYouTube, syncFromSmartLink } from '../../lib/mediaSyncClient';
@@ -138,6 +139,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
   // Releases modal / form state
   const [editingRelease, setEditingRelease] = useState<MusicRelease | null>(null);
   const [isReleaseModalOpen, setIsReleaseModalOpen] = useState(false);
+  const [releaseFormError, setReleaseFormError] = useState<string | null>(null);
 
   // Videos modal / form state
   const [editingVideo, setEditingVideo] = useState<MusicVideo | null>(null);
@@ -306,9 +308,9 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
 
   const handleCopyReleaseBioLink = async (rel: MusicRelease) => {
     const slug = rel.slug || rel.id;
-    const url = `${window.location.origin}/#/release/${slug}`;
+    const url = `${window.location.origin}/release/${slug}`;
     await copyToClipboard(url);
-    showToast(`Instagram bio link copied: /#/release/${slug}`);
+    showToast(`Clean release URL copied: /release/${slug}`);
   };
 
   // Profile Save
@@ -377,12 +379,47 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
   // Release Actions
   const handleSaveReleaseForm = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!editingRelease || !editingRelease.title.trim()) return;
+    if (!editingRelease) return;
+
+    // Reset error state
+    setReleaseFormError(null);
+
+    // 1. Validation checks
+    const titleClean = (editingRelease.title || '').trim();
+    if (!titleClean) {
+      setReleaseFormError('Release title is required.');
+      return;
+    }
+    if (!editingRelease.releaseDate || !editingRelease.releaseDate.trim()) {
+      setReleaseFormError('Release date is required.');
+      return;
+    }
+
+    const currentType: 'single' | 'ep' | 'album' =
+      editingRelease.releaseType ||
+      (editingRelease.type?.toLowerCase() === 'ep'
+        ? 'ep'
+        : editingRelease.type?.toLowerCase() === 'album'
+        ? 'album'
+        : 'single');
+
+    const displayType: 'Single' | 'EP' | 'Album' =
+      currentType === 'ep' ? 'EP' : currentType === 'album' ? 'Album' : 'Single';
+
+    // 2. Validate tracklist for EP / Album
+    if ((currentType === 'ep' || currentType === 'album') && editingRelease.tracks && editingRelease.tracks.length > 0) {
+      const invalidTrackIdx = editingRelease.tracks.findIndex((t) => !t.title || !t.title.trim());
+      if (invalidTrackIdx >= 0) {
+        setReleaseFormError(`Track ${invalidTrackIdx + 1} has an empty title. Please enter a track title or delete it.`);
+        return;
+      }
+    }
+
     setIsSaving(true);
     try {
       const slug =
         editingRelease.slug ||
-        editingRelease.title
+        titleClean
           .toLowerCase()
           .replace(/[^\w\s-]/g, '')
           .replace(/[\s_-]+/g, '-')
@@ -398,8 +435,12 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
 
       const updatedRelease: MusicRelease = {
         ...editingRelease,
+        title: titleClean,
+        releaseType: currentType,
+        type: displayType,
         smartUrl: cleanSmartUrl || undefined,
         slug,
+        tracks: editingRelease.tracks || [],
         createdAt: editingRelease.createdAt || new Date().toISOString(),
         // Newly added releases automatically become the featured Latest Release on the homepage
         featured: isNewRelease ? true : editingRelease.featured,
@@ -430,8 +471,10 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
       await onRefreshData();
       setIsReleaseModalOpen(false);
       setEditingRelease(null);
-      showToast(`Release "${updatedRelease.title}" saved.`);
+      setReleaseFormError(null);
+      showToast(`${displayType} "${updatedRelease.title}" saved successfully.`);
     } catch (err: any) {
+      setReleaseFormError(err.message || 'Failed to save release.');
       showToast(`Failed to save release: ${err.message}`);
     } finally {
       setIsSaving(false);
@@ -1003,13 +1046,18 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                       id: `rel-${Date.now()}`,
                       title: '',
                       type: 'Single',
+                      releaseType: 'single',
                       slug: '',
                       releaseDate: new Date().toISOString().split('T')[0],
                       coverImage: '',
                       description: '',
+                      genre: '',
+                      isrc: '',
+                      upc: '',
                       smartUrl: '',
                       createdAt: new Date().toISOString(),
                       featured: true,
+                      tracks: [],
                       streamingPlatforms: [],
                       spotifyUrl: '',
                       youtubeUrl: '',
@@ -1018,6 +1066,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                     });
                     setQuickSpotifyTrackUrl('');
                     setShowAdvancedPlatforms(false);
+                    setReleaseFormError(null);
                     setIsReleaseModalOpen(true);
                   }}
                   className="inline-flex items-center space-x-2 px-4 py-2.5 rounded-xl bg-white text-black font-bold text-xs tracking-wider uppercase hover:bg-neutral-200 transition-colors cursor-pointer"
@@ -1029,104 +1078,116 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {releases.map((rel) => (
-                <div
-                  key={rel.id}
-                  className="bg-[#0c0c10] border border-white/10 rounded-2xl p-5 flex flex-col justify-between relative group"
-                >
-                  <div className="flex items-start space-x-4">
-                    <SmartImage
-                      src={rel.coverImage}
-                      alt={rel.title}
-                      fallbackType="artwork"
-                      fallbackText={rel.title}
-                      containerClassName="w-20 h-20 rounded-xl border border-white/10 shrink-0 overflow-hidden"
-                      className="w-full h-full object-cover"
-                    />
-                    <div className="flex-1 min-w-0 pr-12">
-                      <div className="flex items-center space-x-2">
-                        <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded bg-white/10 text-white">
-                          {rel.type}
-                        </span>
-                        {rel.featured && (
-                          <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded bg-amber-400/20 text-amber-300">
-                            Featured
+              {releases.map((rel) => {
+                const rt = rel.releaseType || (rel.type?.toLowerCase() === 'ep' ? 'ep' : rel.type?.toLowerCase() === 'album' ? 'album' : 'single');
+                return (
+                  <div
+                    key={rel.id}
+                    className="bg-[#0c0c10] border border-white/10 rounded-2xl p-5 flex flex-col justify-between relative group"
+                  >
+                    <div className="flex items-start space-x-4">
+                      <SmartImage
+                        src={rel.coverImage}
+                        alt={rel.title}
+                        fallbackType="artwork"
+                        fallbackText={rel.title}
+                        containerClassName="w-20 h-20 rounded-xl border border-white/10 shrink-0 overflow-hidden"
+                        className="w-full h-full object-cover"
+                      />
+                      <div className="flex-1 min-w-0 pr-12">
+                        <div className="flex items-center space-x-2">
+                          <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded bg-white/10 text-white">
+                            {rel.type}
                           </span>
-                        )}
+                          {rel.tracks && rel.tracks.length > 0 && (
+                            <span className="text-[10px] uppercase font-semibold tracking-wider px-1.5 py-0.5 rounded bg-white/5 text-neutral-300">
+                              {rel.tracks.length} {rel.tracks.length === 1 ? 'track' : 'tracks'}
+                            </span>
+                          )}
+                          {rel.featured && (
+                            <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded bg-amber-400/20 text-amber-300">
+                              Featured
+                            </span>
+                          )}
+                        </div>
+                        <h4 className="text-base font-bold text-white uppercase mt-1 truncate">
+                          {rel.title}
+                        </h4>
+                        <p className="text-xs text-neutral-400 mt-0.5">
+                          {rel.releaseDate} {rel.genre ? `· ${rel.genre}` : ''}
+                        </p>
+                        <p className="text-xs text-neutral-400 line-clamp-1 mt-1 font-light">
+                          {rel.description || 'No description'}
+                        </p>
                       </div>
-                      <h4 className="text-base font-bold text-white uppercase mt-1 truncate">
-                        {rel.title}
-                      </h4>
-                      <p className="text-xs text-neutral-400 mt-0.5">
-                        {rel.releaseDate}
-                      </p>
-                      <p className="text-xs text-neutral-400 line-clamp-1 mt-1 font-light">
-                        {rel.description || 'No description'}
-                      </p>
+
+                      <div className="absolute top-4 right-4 flex items-center space-x-1">
+                        <button
+                          onClick={() => {
+                            let platforms = rel.streamingPlatforms ? [...rel.streamingPlatforms] : [];
+                            if (platforms.length === 0) {
+                              if (rel.spotifyUrl) platforms.push({ id: `sp-${Date.now()}-1`, platform: 'spotify', label: 'Spotify', url: rel.spotifyUrl, actionText: 'Listen' });
+                              if (rel.appleMusicUrl) platforms.push({ id: `sp-${Date.now()}-2`, platform: 'appleMusic', label: 'Apple Music', url: rel.appleMusicUrl, actionText: 'Listen' });
+                              if (rel.youtubeMusicUrl) platforms.push({ id: `sp-${Date.now()}-3`, platform: 'youtubeMusic', label: 'YouTube Music', url: rel.youtubeMusicUrl, actionText: 'Listen' });
+                              if (rel.youtubeUrl) platforms.push({ id: `sp-${Date.now()}-4`, platform: 'youtube', label: 'YouTube Video', url: rel.youtubeUrl, actionText: 'Watch' });
+                              if (rel.otherUrl) platforms.push({ id: `sp-${Date.now()}-5`, platform: 'bandcamp', label: 'Stores', url: rel.otherUrl, actionText: 'Buy' });
+                            }
+                            setEditingRelease({
+                              ...rel,
+                              releaseType: rt,
+                              type: rt === 'ep' ? 'EP' : rt === 'album' ? 'Album' : 'Single',
+                              tracks: rel.tracks || [],
+                              streamingPlatforms: platforms,
+                            });
+                            setReleaseFormError(null);
+                            setIsReleaseModalOpen(true);
+                          }}
+                          className="p-1.5 rounded-lg text-neutral-400 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+                          title="Edit release"
+                        >
+                          <Edit2 className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => handleDeleteRelease(rel.id, rel.title)}
+                          className="p-1.5 rounded-lg text-neutral-400 hover:text-red-400 hover:bg-red-500/10 transition-colors cursor-pointer"
+                          title="Delete release"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
                     </div>
 
-                    <div className="absolute top-4 right-4 flex items-center space-x-1">
-                      <button
-                        onClick={() => {
-                          let platforms = rel.streamingPlatforms ? [...rel.streamingPlatforms] : [];
-                          if (platforms.length === 0) {
-                            if (rel.spotifyUrl) platforms.push({ id: `sp-${Date.now()}-1`, platform: 'spotify', label: 'Spotify', url: rel.spotifyUrl, actionText: 'Listen' });
-                            if (rel.appleMusicUrl) platforms.push({ id: `sp-${Date.now()}-2`, platform: 'appleMusic', label: 'Apple Music', url: rel.appleMusicUrl, actionText: 'Listen' });
-                            if (rel.youtubeMusicUrl) platforms.push({ id: `sp-${Date.now()}-3`, platform: 'youtubeMusic', label: 'YouTube Music', url: rel.youtubeMusicUrl, actionText: 'Listen' });
-                            if (rel.youtubeUrl) platforms.push({ id: `sp-${Date.now()}-4`, platform: 'youtube', label: 'YouTube Video', url: rel.youtubeUrl, actionText: 'Watch' });
-                            if (rel.otherUrl) platforms.push({ id: `sp-${Date.now()}-5`, platform: 'bandcamp', label: 'Stores', url: rel.otherUrl, actionText: 'Buy' });
-                          }
-                          setEditingRelease({
-                            ...rel,
-                            streamingPlatforms: platforms,
-                          });
-                          setIsReleaseModalOpen(true);
-                        }}
-                        className="p-1.5 rounded-lg text-neutral-400 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
-                        title="Edit release"
-                      >
-                        <Edit2 className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => handleDeleteRelease(rel.id, rel.title)}
-                        className="p-1.5 rounded-lg text-neutral-400 hover:text-red-400 hover:bg-red-500/10 transition-colors cursor-pointer"
-                        title="Delete release"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </div>
+                    {/* Clean Release URL & Quick Preview */}
+                    <div className="mt-4 pt-3 border-t border-white/10 flex flex-wrap items-center justify-between gap-2">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">
+                        Clean Release URL:
+                      </span>
+                      <div className="flex items-center space-x-2">
+                        <button
+                          type="button"
+                          onClick={() => handleCopyReleaseBioLink(rel)}
+                          className="inline-flex items-center space-x-1.5 px-2.5 py-1.5 rounded-lg bg-pink-500/10 hover:bg-pink-500/20 border border-pink-500/30 text-pink-300 hover:text-pink-200 text-xs font-semibold transition-colors cursor-pointer"
+                          title="Copy clean release URL"
+                        >
+                          <Copy className="w-3.5 h-3.5 text-pink-400" />
+                          <span>Copy URL</span>
+                        </button>
 
-                  {/* Smart Link Quick Share (Instagram Bio Link & Preview) */}
-                  <div className="mt-4 pt-3 border-t border-white/10 flex flex-wrap items-center justify-between gap-2">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">
-                      Instagram Bio Smart Link:
-                    </span>
-                    <div className="flex items-center space-x-2">
-                      <button
-                        type="button"
-                        onClick={() => handleCopyReleaseBioLink(rel)}
-                        className="inline-flex items-center space-x-1.5 px-2.5 py-1.5 rounded-lg bg-pink-500/10 hover:bg-pink-500/20 border border-pink-500/30 text-pink-300 hover:text-pink-200 text-xs font-semibold transition-colors cursor-pointer"
-                        title="Copy link to paste into Instagram bio"
-                      >
-                        <Copy className="w-3.5 h-3.5 text-pink-400" />
-                        <span>Copy Bio Link</span>
-                      </button>
-
-                      <a
-                        href={`/#/release/${rel.slug || rel.id}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center space-x-1 px-2.5 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 border border-white/15 text-white text-xs font-bold uppercase tracking-wider transition-colors cursor-pointer"
-                        title="Preview the standalone Smart Landing Page"
-                      >
-                        <span>Open Page</span>
-                        <ExternalLink className="w-3 h-3" />
-                      </a>
+                        <a
+                          href={`/release/${rel.slug || rel.id}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center space-x-1 px-2.5 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 border border-white/15 text-white text-xs font-bold uppercase tracking-wider transition-colors cursor-pointer"
+                          title="Preview the standalone release detail page"
+                        >
+                          <span>Open Page</span>
+                          <ExternalLink className="w-3 h-3" />
+                        </a>
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         )}
@@ -1527,12 +1588,106 @@ service cloud.firestore {
       {/* ---------------------------------------------------- */}
       {isReleaseModalOpen && editingRelease && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-black/90 backdrop-blur-md overflow-y-auto">
-          <div className="bg-[#0c0c10] border border-white/10 rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6 sm:p-8 shadow-2xl">
-            <h3 className="text-lg font-bold text-white uppercase tracking-wider mb-6">
-              {editingRelease.id ? 'Edit Music Release' : 'Add New Music Release'}
-            </h3>
+          <div className="bg-[#0c0c10] border border-white/10 rounded-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto p-6 sm:p-8 shadow-2xl">
+            <div className="flex items-center justify-between pb-4 mb-4 border-b border-white/10">
+              <div>
+                <h3 className="text-lg font-bold text-white uppercase tracking-wider">
+                  {editingRelease.id ? 'Edit Music Release' : 'Add New Music Release'}
+                </h3>
+                <p className="text-xs text-neutral-400 mt-0.5">
+                  Configure release metadata, tracklists, and streaming distribution.
+                </p>
+              </div>
+              <span className="text-xs font-bold uppercase tracking-wider px-3 py-1 rounded-full bg-white/10 text-white border border-white/15">
+                {(editingRelease.releaseType || editingRelease.type || 'single').toUpperCase()}
+              </span>
+            </div>
 
-            <form onSubmit={handleSaveReleaseForm} className="space-y-4">
+            {/* Validation Error Banner */}
+            {releaseFormError && (
+              <div className="p-3.5 mb-5 rounded-xl bg-red-500/10 border border-red-500/30 flex items-start space-x-2.5 text-xs text-red-300">
+                <AlertCircle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <span className="font-semibold text-red-200">Validation Error:</span> {releaseFormError}
+                </div>
+              </div>
+            )}
+
+            <form onSubmit={handleSaveReleaseForm} className="space-y-6">
+              {/* Release Type Selection Control (Required) */}
+              <div className="p-4 rounded-2xl bg-[#14141a] border border-white/10 space-y-3">
+                <div className="flex items-center justify-between">
+                  <label htmlFor="release-type-select" className="block text-xs font-bold uppercase tracking-wider text-white">
+                    Release Type *
+                  </label>
+                  <span className="text-[11px] text-neutral-400">
+                    Determines form fields, tracklist structure, and discography badges
+                  </span>
+                </div>
+
+                {/* Visual Selector Pills */}
+                <div className="grid grid-cols-3 gap-2">
+                  {(['Single', 'EP', 'Album'] as const).map((t) => {
+                    const normType = t.toLowerCase() as 'single' | 'ep' | 'album';
+                    const isSelected =
+                      (editingRelease.releaseType === normType) ||
+                      (!editingRelease.releaseType && editingRelease.type === t);
+                    return (
+                      <button
+                        key={t}
+                        type="button"
+                        onClick={() => {
+                          setEditingRelease({
+                            ...editingRelease,
+                            type: t,
+                            releaseType: normType,
+                          });
+                        }}
+                        className={`py-3 px-3 rounded-xl border text-center transition-all cursor-pointer flex flex-col items-center justify-center space-y-1 ${
+                          isSelected
+                            ? 'bg-white text-black border-white font-bold shadow-md'
+                            : 'bg-white/[0.02] text-neutral-300 border-white/10 hover:border-white/20 hover:bg-white/[0.05]'
+                        }`}
+                      >
+                        <span className="text-xs font-extrabold uppercase tracking-wider">
+                          {t}
+                        </span>
+                        <span className={`text-[10px] ${isSelected ? 'text-black/70' : 'text-neutral-500'}`}>
+                          {t === 'Single' ? '1 Track' : t === 'EP' ? 'Multi-Track EP' : 'Full Album'}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Explicit Required Dropdown named "Release Type" as required by specification */}
+                <div className="pt-2">
+                  <label htmlFor="release-type-select" className="sr-only">
+                    Release Type
+                  </label>
+                  <select
+                    id="release-type-select"
+                    name="Release Type"
+                    value={editingRelease.type}
+                    onChange={(e) => {
+                      const newType = e.target.value as 'Single' | 'EP' | 'Album';
+                      const normType = newType === 'EP' ? 'ep' : newType === 'Album' ? 'album' : 'single';
+                      setEditingRelease({
+                        ...editingRelease,
+                        type: newType,
+                        releaseType: normType,
+                      });
+                    }}
+                    required
+                    className="w-full px-4 py-2.5 rounded-xl bg-[#0e0e13] border border-white/15 text-white text-xs focus:outline-none focus:border-white/40"
+                  >
+                    <option value="Single">Single — Standalone Track</option>
+                    <option value="EP">EP — Extended Play (Multi-Track)</option>
+                    <option value="Album">Album — Full Length Album</option>
+                  </select>
+                </div>
+              </div>
+
               {/* Feature.fm / ffem.bio Smart Link Direct One-Link Integration */}
               <div className="p-4 rounded-2xl bg-gradient-to-r from-pink-500/10 via-purple-500/10 to-blue-500/10 border border-pink-500/30 space-y-2.5 shadow-lg shadow-pink-500/5">
                 <div className="flex items-center justify-between">
@@ -1547,7 +1702,7 @@ service cloud.firestore {
                   {isSyncingSmartLink && (
                     <span className="text-[10px] text-pink-400 flex items-center space-x-1 font-medium">
                       <Sparkles className="w-3 h-3 animate-spin" />
-                      <span>Fetching track details...</span>
+                      <span>Fetching metadata...</span>
                     </span>
                   )}
                 </div>
@@ -1555,7 +1710,7 @@ service cloud.firestore {
                 <div className="flex gap-2">
                   <input
                     type="text"
-                    placeholder="Paste Feature.fm link (e.g. https://ffem.bio/... or https://ffm.bio/...)"
+                    placeholder="Paste Feature.fm link (e.g. https://ffem.bio/...)"
                     value={editingRelease.smartUrl || ''}
                     onChange={(e) => {
                       const val = e.target.value;
@@ -1585,57 +1740,22 @@ service cloud.firestore {
                     onClick={handleFetchSmartLink}
                     disabled={isSyncingSmartLink || !editingRelease.smartUrl?.trim()}
                     className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-400 hover:to-purple-500 text-white font-bold text-xs uppercase tracking-wider transition-all shrink-0 cursor-pointer disabled:opacity-40 shadow-md shadow-pink-500/20"
-                    title="Auto-fetch track title and artwork from smart link"
-                  >
-                    Auto-Fill
-                  </button>
-                </div>
-
-                <div className="flex items-start space-x-2 text-[11px] text-neutral-300">
-                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0 mt-0.5" />
-                  <span>
-                    <strong>One-Link Auto Redirect:</strong> আপনি শুধু এই ffem.bio লিংকটি পেস্ট করলে আর আলাদা আলাদা কোনো স্ট্রিমিং লিংক (Spotify, Apple, YouTube) যোগ করতে হবে না। শ্রোতারা রিলিজের উপর ক্লিক করলেই সরাসরি আপনার ffem.bio লিংকে চলে যাবে!
-                  </span>
-                </div>
-              </div>
-
-              {/* Quick Auto-Fill from Spotify Track Link (Alternative helper) */}
-              <div className="p-3 rounded-xl bg-white/[0.02] border border-white/10 space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-[11px] font-semibold text-neutral-400 uppercase tracking-wider flex items-center space-x-1.5">
-                    <BrandLogos platform="spotify" className="w-3 h-3 text-[#1DB954]" />
-                    <span>Or Quick Auto-Fill from Spotify Track URL</span>
-                  </span>
-                  {isSyncingSingleSpotify && (
-                    <span className="text-[10px] text-[#1DB954] flex items-center space-x-1">
-                      <Sparkles className="w-3 h-3 animate-spin" />
-                      <span>Fetching track details...</span>
-                    </span>
-                  )}
-                </div>
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    placeholder="Paste Spotify track link (e.g. https://open.spotify.com/track/...)"
-                    value={quickSpotifyTrackUrl}
-                    onChange={(e) => setQuickSpotifyTrackUrl(e.target.value)}
-                    className="w-full px-3 py-1.5 rounded-lg bg-[#14141a] border border-white/10 text-white text-xs focus:outline-none focus:border-[#1DB954]"
-                  />
-                  <button
-                    type="button"
-                    onClick={handleQuickFetchSingleSpotify}
-                    disabled={isSyncingSingleSpotify || !quickSpotifyTrackUrl.trim()}
-                    className="px-3 py-1.5 rounded-lg bg-[#1DB954]/20 hover:bg-[#1DB954] text-[#1DB954] hover:text-black font-bold text-xs uppercase tracking-wider transition-colors shrink-0 cursor-pointer disabled:opacity-40"
+                    title="Auto-fetch release title and artwork from smart link"
                   >
                     Auto-Fill
                   </button>
                 </div>
               </div>
 
+              {/* Dynamic Core Fields */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-semibold uppercase text-neutral-400 mb-1">
-                    Song / Release Title *
+                    {editingRelease.type === 'Single'
+                      ? 'Release Title *'
+                      : editingRelease.type === 'EP'
+                      ? 'EP Title *'
+                      : 'Album Title *'}
                   </label>
                   <input
                     type="text"
@@ -1643,30 +1763,16 @@ service cloud.firestore {
                     onChange={(e) =>
                       setEditingRelease({ ...editingRelease, title: e.target.value })
                     }
-                    placeholder="e.g. Jabonare"
+                    placeholder={
+                      editingRelease.type === 'Single'
+                        ? 'e.g. Mayabi Chokh'
+                        : editingRelease.type === 'EP'
+                        ? 'e.g. Maya — EP'
+                        : 'e.g. Obosheshe'
+                    }
                     required
                     className="w-full px-4 py-2.5 rounded-xl bg-[#14141a] border border-white/10 text-white text-sm focus:outline-none focus:border-white/30"
                   />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold uppercase text-neutral-400 mb-1">
-                    Release Type *
-                  </label>
-                  <select
-                    value={editingRelease.type}
-                    onChange={(e) =>
-                      setEditingRelease({
-                        ...editingRelease,
-                        type: e.target.value as 'Single' | 'EP' | 'Album',
-                      })
-                    }
-                    className="w-full px-4 py-2.5 rounded-xl bg-[#14141a] border border-white/10 text-white text-sm focus:outline-none focus:border-white/30"
-                  >
-                    <option value="Single">Single</option>
-                    <option value="EP">EP</option>
-                    <option value="Album">Album</option>
-                  </select>
                 </div>
 
                 <div>
@@ -1680,6 +1786,21 @@ service cloud.firestore {
                       setEditingRelease({ ...editingRelease, releaseDate: e.target.value })
                     }
                     required
+                    className="w-full px-4 py-2.5 rounded-xl bg-[#14141a] border border-white/10 text-white text-sm focus:outline-none focus:border-white/30"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold uppercase text-neutral-400 mb-1">
+                    Genre {editingRelease.type !== 'Single' ? '*' : '(Optional)'}
+                  </label>
+                  <input
+                    type="text"
+                    value={editingRelease.genre || ''}
+                    onChange={(e) =>
+                      setEditingRelease({ ...editingRelease, genre: e.target.value })
+                    }
+                    placeholder="e.g. Indie Pop, Bengali Rock, Acoustic"
                     className="w-full px-4 py-2.5 rounded-xl bg-[#14141a] border border-white/10 text-white text-sm focus:outline-none focus:border-white/30"
                   />
                 </div>
@@ -1698,26 +1819,33 @@ service cloud.firestore {
                     htmlFor="release-featured-checkbox"
                     className="text-xs font-semibold uppercase tracking-wider text-neutral-300 cursor-pointer"
                   >
-                    Feature on Homepage Hero (Auto-enabled for new releases)
+                    Feature on Homepage Hero
                   </label>
                 </div>
               </div>
 
-              {/* Cover Artwork Image with instant live preview */}
+              {/* Cover Artwork Image */}
               <ImageUploader
-                label="Cover Artwork"
+                label={
+                  editingRelease.type === 'Single'
+                    ? 'Cover Artwork *'
+                    : editingRelease.type === 'EP'
+                    ? 'EP Cover Artwork *'
+                    : 'Album Cover Artwork *'
+                }
                 value={editingRelease.coverImage || ''}
                 onChange={(url) =>
                   setEditingRelease({ ...editingRelease, coverImage: url })
                 }
                 aspectRatio="square"
                 placeholder="https://... or upload artwork"
-                helperText="Upload a square cover artwork from your device or paste an image URL."
+                helperText="Upload square cover artwork from your device or paste an image URL."
               />
 
+              {/* Description */}
               <div>
                 <label className="block text-xs font-semibold uppercase text-neutral-400 mb-1">
-                  Short Description
+                  Description
                 </label>
                 <textarea
                   rows={2}
@@ -1725,75 +1853,240 @@ service cloud.firestore {
                   onChange={(e) =>
                     setEditingRelease({ ...editingRelease, description: e.target.value })
                   }
-                  placeholder="Brief context, mood, or poetic description..."
+                  placeholder={
+                    editingRelease.type === 'Single'
+                      ? 'Brief context, mood, or poetic description of this song...'
+                      : `Concept, thematic background, and liner notes for this ${editingRelease.type}...`
+                  }
                   className="w-full px-4 py-2.5 rounded-xl bg-[#14141a] border border-white/10 text-white text-sm focus:outline-none focus:border-white/30"
                 />
               </div>
 
-              {/* Optional Individual Streaming Platform URLs Accordion */}
-              <div className="p-3.5 rounded-xl bg-white/[0.02] border border-white/10 space-y-3">
-                <button
-                  type="button"
-                  onClick={() => setShowAdvancedPlatforms(!showAdvancedPlatforms)}
-                  className="flex items-center justify-between w-full text-xs font-semibold uppercase tracking-wider text-neutral-300 hover:text-white transition-colors cursor-pointer"
-                >
-                  <span>
-                    Individual Platform Links (Optional - Feature.fm ffem.bio থাকলে প্রয়োজন নেই)
-                  </span>
-                  <span className="text-xs font-bold px-2 py-0.5 rounded bg-white/10 text-white">
-                    {showAdvancedPlatforms ? 'Hide' : 'Show'}
-                  </span>
-                </button>
-
-                {showAdvancedPlatforms && (
-                  <div className="pt-2 border-t border-white/10">
-                    <StreamingPlatformsManager
-                      platforms={editingRelease.streamingPlatforms || []}
-                      onChange={(updatedPlatforms) =>
-                        setEditingRelease({
-                          ...editingRelease,
-                          streamingPlatforms: updatedPlatforms,
-                        })
-                      }
-                    />
+              {/* DYNAMIC SECTION: SINGLE vs EP / ALBUM */}
+              {editingRelease.type === 'Single' ? (
+                /* SINGLE SPECIFIC FIELDS */
+                <div className="space-y-4 p-4 rounded-2xl bg-white/[0.02] border border-white/10">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold uppercase tracking-wider text-white">
+                      Single Track &amp; Links
+                    </span>
+                    <span className="text-[10px] text-neutral-400">
+                      Standard Single Streaming URLs
+                    </span>
                   </div>
-                )}
-              </div>
 
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-semibold uppercase text-neutral-400 mb-1">
+                        Spotify URL
+                      </label>
+                      <input
+                        type="url"
+                        value={editingRelease.spotifyUrl || ''}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setEditingRelease((prev) => {
+                            if (!prev) return prev;
+                            const existingPlatforms = prev.streamingPlatforms || [];
+                            const updatedPlatforms = existingPlatforms.some((p) => p.platform === 'spotify')
+                              ? existingPlatforms.map((p) => (p.platform === 'spotify' ? { ...p, url: val } : p))
+                              : val
+                              ? [...existingPlatforms, { id: 'sp', platform: 'spotify' as const, label: 'Spotify', url: val, actionText: 'Listen' }]
+                              : existingPlatforms;
+                            return { ...prev, spotifyUrl: val, streamingPlatforms: updatedPlatforms };
+                          });
+                        }}
+                        placeholder="https://open.spotify.com/track/..."
+                        className="w-full px-3.5 py-2 rounded-xl bg-[#14141a] border border-white/10 text-xs text-white focus:outline-none focus:border-emerald-500 font-mono"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold uppercase text-neutral-400 mb-1">
+                        YouTube URL
+                      </label>
+                      <input
+                        type="url"
+                        value={editingRelease.youtubeUrl || ''}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setEditingRelease((prev) => {
+                            if (!prev) return prev;
+                            const existingPlatforms = prev.streamingPlatforms || [];
+                            const updatedPlatforms = existingPlatforms.some((p) => p.platform === 'youtube')
+                              ? existingPlatforms.map((p) => (p.platform === 'youtube' ? { ...p, url: val } : p))
+                              : val
+                              ? [...existingPlatforms, { id: 'yt', platform: 'youtube' as const, label: 'YouTube', url: val, actionText: 'Watch' }]
+                              : existingPlatforms;
+                            return { ...prev, youtubeUrl: val, streamingPlatforms: updatedPlatforms };
+                          });
+                        }}
+                        placeholder="https://youtu.be/... or https://youtube.com/watch?v=..."
+                        className="w-full px-3.5 py-2 rounded-xl bg-[#14141a] border border-white/10 text-xs text-white focus:outline-none focus:border-red-500 font-mono"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold uppercase text-neutral-400 mb-1">
+                        ISRC (Optional)
+                      </label>
+                      <input
+                        type="text"
+                        value={editingRelease.isrc || ''}
+                        onChange={(e) =>
+                          setEditingRelease({ ...editingRelease, isrc: e.target.value })
+                        }
+                        placeholder="e.g. BD-XYZ-26-00001"
+                        className="w-full px-3.5 py-2 rounded-xl bg-[#14141a] border border-white/10 text-xs text-white font-mono"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold uppercase text-neutral-400 mb-1">
+                        Apple Music URL (Optional)
+                      </label>
+                      <input
+                        type="url"
+                        value={editingRelease.appleMusicUrl || ''}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setEditingRelease((prev) => {
+                            if (!prev) return prev;
+                            const existingPlatforms = prev.streamingPlatforms || [];
+                            const updatedPlatforms = existingPlatforms.some((p) => p.platform === 'appleMusic')
+                              ? existingPlatforms.map((p) => (p.platform === 'appleMusic' ? { ...p, url: val } : p))
+                              : val
+                              ? [...existingPlatforms, { id: 'am', platform: 'appleMusic' as const, label: 'Apple Music', url: val, actionText: 'Listen' }]
+                              : existingPlatforms;
+                            return { ...prev, appleMusicUrl: val, streamingPlatforms: updatedPlatforms };
+                          });
+                        }}
+                        placeholder="https://music.apple.com/..."
+                        className="w-full px-3.5 py-2 rounded-xl bg-[#14141a] border border-white/10 text-xs text-white font-mono"
+                      />
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                /* EP & ALBUM SPECIFIC MULTI-TRACK MANAGEMENT */
+                <div className="space-y-4">
+                  {/* Dedicated Tracklist Manager */}
+                  <TracklistManager
+                    tracks={editingRelease.tracks || []}
+                    releaseType={editingRelease.type === 'EP' ? 'ep' : 'album'}
+                    onChange={(updatedTracks) => {
+                      setEditingRelease({
+                        ...editingRelease,
+                        tracks: updatedTracks,
+                      });
+                    }}
+                  />
+
+                  {/* EP / Album Level Links */}
+                  <div className="p-4 rounded-2xl bg-white/[0.02] border border-white/10 space-y-3">
+                    <span className="text-xs font-bold uppercase tracking-wider text-white block">
+                      {editingRelease.type}-Level Streaming Links &amp; Identifiers
+                    </span>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-xs font-semibold uppercase text-neutral-400 mb-1">
+                          {editingRelease.type} Spotify URL
+                        </label>
+                        <input
+                          type="url"
+                          value={editingRelease.spotifyUrl || ''}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setEditingRelease((prev) => {
+                              if (!prev) return prev;
+                              const existingPlatforms = prev.streamingPlatforms || [];
+                              const updatedPlatforms = existingPlatforms.some((p) => p.platform === 'spotify')
+                                ? existingPlatforms.map((p) => (p.platform === 'spotify' ? { ...p, url: val } : p))
+                                : val
+                                ? [...existingPlatforms, { id: 'sp', platform: 'spotify' as const, label: 'Spotify', url: val, actionText: 'Listen' }]
+                                : existingPlatforms;
+                              return { ...prev, spotifyUrl: val, streamingPlatforms: updatedPlatforms };
+                            });
+                          }}
+                          placeholder={`https://open.spotify.com/album/...`}
+                          className="w-full px-3.5 py-2 rounded-xl bg-[#14141a] border border-white/10 text-xs text-white focus:outline-none focus:border-emerald-500 font-mono"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-semibold uppercase text-neutral-400 mb-1">
+                          {editingRelease.type} YouTube / Playlist URL
+                        </label>
+                        <input
+                          type="url"
+                          value={editingRelease.youtubeUrl || ''}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setEditingRelease((prev) => {
+                              if (!prev) return prev;
+                              const existingPlatforms = prev.streamingPlatforms || [];
+                              const updatedPlatforms = existingPlatforms.some((p) => p.platform === 'youtube')
+                                ? existingPlatforms.map((p) => (p.platform === 'youtube' ? { ...p, url: val } : p))
+                                : val
+                                ? [...existingPlatforms, { id: 'yt', platform: 'youtube' as const, label: 'YouTube', url: val, actionText: 'Watch' }]
+                                : existingPlatforms;
+                              return { ...prev, youtubeUrl: val, streamingPlatforms: updatedPlatforms };
+                            });
+                          }}
+                          placeholder="https://youtube.com/playlist?list=... or video"
+                          className="w-full px-3.5 py-2 rounded-xl bg-[#14141a] border border-white/10 text-xs text-white focus:outline-none focus:border-red-500 font-mono"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-semibold uppercase text-neutral-400 mb-1">
+                          UPC / EAN (Optional)
+                        </label>
+                        <input
+                          type="text"
+                          value={editingRelease.upc || ''}
+                          onChange={(e) =>
+                            setEditingRelease({ ...editingRelease, upc: e.target.value })
+                          }
+                          placeholder="e.g. 196871234567"
+                          className="w-full px-3.5 py-2 rounded-xl bg-[#14141a] border border-white/10 text-xs text-white font-mono"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-semibold uppercase text-neutral-400 mb-1">
+                          Apple Music URL (Optional)
+                        </label>
+                        <input
+                          type="url"
+                          value={editingRelease.appleMusicUrl || ''}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setEditingRelease((prev) => {
+                              if (!prev) return prev;
+                              const existingPlatforms = prev.streamingPlatforms || [];
+                              const updatedPlatforms = existingPlatforms.some((p) => p.platform === 'appleMusic')
+                                ? existingPlatforms.map((p) => (p.platform === 'appleMusic' ? { ...p, url: val } : p))
+                                : val
+                                ? [...existingPlatforms, { id: 'am', platform: 'appleMusic' as const, label: 'Apple Music', url: val, actionText: 'Listen' }]
+                                : existingPlatforms;
+                              return { ...prev, appleMusicUrl: val, streamingPlatforms: updatedPlatforms };
+                            });
+                          }}
+                          placeholder="https://music.apple.com/album/..."
+                          className="w-full px-3.5 py-2 rounded-xl bg-[#14141a] border border-white/10 text-xs text-white font-mono"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Credits */}
               <div>
                 <label className="block text-xs font-semibold uppercase text-neutral-400 mb-1">
-                  External Lyrics / Chord URL (Optional)
-                </label>
-                <input
-                  type="url"
-                  value={editingRelease.lyricsUrl || ''}
-                  onChange={(e) =>
-                    setEditingRelease({ ...editingRelease, lyricsUrl: e.target.value })
-                  }
-                  placeholder="https://..."
-                  className="w-full px-3.5 py-2 rounded-xl bg-[#14141a] border border-white/10 text-xs text-white"
-                />
-              </div>
-
-              {/* Lyrics & Credits */}
-              <div>
-                <label className="block text-xs font-semibold uppercase text-neutral-400 mb-1">
-                  Lyrics Text
-                </label>
-                <textarea
-                  rows={4}
-                  value={editingRelease.lyricsText || ''}
-                  onChange={(e) =>
-                    setEditingRelease({ ...editingRelease, lyricsText: e.target.value })
-                  }
-                  placeholder="Paste lyrics in Bengali or English..."
-                  className="w-full px-4 py-2.5 rounded-xl bg-[#14141a] border border-white/10 text-white text-xs font-mono focus:outline-none focus:border-white/30"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold uppercase text-neutral-400 mb-1">
-                  Production Credits
+                  Credits
                 </label>
                 <input
                   type="text"
@@ -1806,6 +2099,67 @@ service cloud.firestore {
                 />
               </div>
 
+              {/* Lyrics & Additional Platforms Accordion */}
+              <div className="p-3.5 rounded-xl bg-white/[0.02] border border-white/10 space-y-3">
+                <button
+                  type="button"
+                  onClick={() => setShowAdvancedPlatforms(!showAdvancedPlatforms)}
+                  className="flex items-center justify-between w-full text-xs font-semibold uppercase tracking-wider text-neutral-300 hover:text-white transition-colors cursor-pointer"
+                >
+                  <span>
+                    Additional Streaming Platforms &amp; Lyrics (Optional)
+                  </span>
+                  <span className="text-xs font-bold px-2 py-0.5 rounded bg-white/10 text-white">
+                    {showAdvancedPlatforms ? 'Hide' : 'Show'}
+                  </span>
+                </button>
+
+                {showAdvancedPlatforms && (
+                  <div className="pt-3 border-t border-white/10 space-y-4">
+                    <StreamingPlatformsManager
+                      platforms={editingRelease.streamingPlatforms || []}
+                      onChange={(updatedPlatforms) =>
+                        setEditingRelease({
+                          ...editingRelease,
+                          streamingPlatforms: updatedPlatforms,
+                        })
+                      }
+                    />
+
+                    <div>
+                      <label className="block text-xs font-semibold uppercase text-neutral-400 mb-1">
+                        External Lyrics / Chord URL (Optional)
+                      </label>
+                      <input
+                        type="url"
+                        value={editingRelease.lyricsUrl || ''}
+                        onChange={(e) =>
+                          setEditingRelease({ ...editingRelease, lyricsUrl: e.target.value })
+                        }
+                        placeholder="https://..."
+                        className="w-full px-3.5 py-2 rounded-xl bg-[#14141a] border border-white/10 text-xs text-white"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold uppercase text-neutral-400 mb-1">
+                        Lyrics Text (Optional)
+                      </label>
+                      <textarea
+                        rows={4}
+                        value={editingRelease.lyricsText || ''}
+                        onChange={(e) =>
+                          setEditingRelease({ ...editingRelease, lyricsText: e.target.value })
+                        }
+                        placeholder="Paste lyrics in Bengali or English..."
+                        className="w-full px-4 py-2.5 rounded-xl bg-[#14141a] border border-white/10 text-white text-xs font-mono focus:outline-none focus:border-white/30"
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Action Buttons */}
               <div className="flex items-center justify-end space-x-3 pt-4 border-t border-white/10">
                 <button
                   type="button"
@@ -1817,9 +2171,9 @@ service cloud.firestore {
                 <button
                   type="submit"
                   disabled={isSaving}
-                  className="px-6 py-2.5 rounded-xl bg-white text-black font-bold text-xs uppercase tracking-wider hover:bg-neutral-200 cursor-pointer"
+                  className="px-6 py-2.5 rounded-xl bg-white text-black font-bold text-xs uppercase tracking-wider hover:bg-neutral-200 cursor-pointer shadow-lg transition-transform active:scale-95 disabled:opacity-50"
                 >
-                  {isSaving ? 'Saving...' : 'Save Release'}
+                  {isSaving ? 'Saving...' : `Save ${editingRelease.type}`}
                 </button>
               </div>
             </form>

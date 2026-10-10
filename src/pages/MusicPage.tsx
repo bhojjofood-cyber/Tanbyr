@@ -9,22 +9,27 @@ interface MusicPageProps {
   releases: MusicRelease[];
   onOpenLyrics: (release: MusicRelease) => void;
   socials?: SocialLinks;
+  onNavigate?: (path: string) => void;
 }
 
-export const MusicPage: React.FC<MusicPageProps> = ({ releases, onOpenLyrics, socials }) => {
+export const MusicPage: React.FC<MusicPageProps> = ({ releases, onOpenLyrics, socials, onNavigate }) => {
   const [activeFilter, setActiveFilter] = useState<'ALL' | 'SINGLE' | 'EP' | 'ALBUM'>('ALL');
   const [searchQuery, setSearchQuery] = useState('');
 
   const filteredReleases = useMemo(() => {
     return releases.filter((release) => {
+      const typeNormalized = (release.releaseType || release.type || 'SINGLE').toUpperCase();
       const matchesFilter =
         activeFilter === 'ALL' ||
+        typeNormalized === activeFilter ||
         release.type.toUpperCase() === activeFilter;
 
       const matchesSearch =
         release.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (release.genre && release.genre.toLowerCase().includes(searchQuery.toLowerCase())) ||
         (release.description && release.description.toLowerCase().includes(searchQuery.toLowerCase())) ||
-        (release.credits && release.credits.toLowerCase().includes(searchQuery.toLowerCase()));
+        (release.credits && release.credits.toLowerCase().includes(searchQuery.toLowerCase())) ||
+        (release.tracks && release.tracks.some(t => t.title.toLowerCase().includes(searchQuery.toLowerCase())));
 
       return matchesFilter && matchesSearch;
     });
@@ -99,6 +104,7 @@ export const MusicPage: React.FC<MusicPageProps> = ({ releases, onOpenLyrics, so
               <ReleaseCard
                 release={release}
                 onOpenLyrics={onOpenLyrics}
+                onNavigate={onNavigate}
               />
             </ScrollReveal>
           ))}

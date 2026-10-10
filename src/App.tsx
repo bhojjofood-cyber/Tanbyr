@@ -46,16 +46,23 @@ import {
 } from './lib/firebase';
 
 function getNormalizedPath(): string {
-  // 1. Check hash route (e.g. #/admin, #admin, #music) - avoids server 404s completely
-  if (window.location.hash) {
+  // 1. Check hash route (e.g. #/release/mayabi-chokh, #/admin, #admin, #music)
+  if (typeof window !== 'undefined' && window.location.hash) {
     const rawHash = window.location.hash.replace(/^#\/?/, '');
     if (rawHash && rawHash !== '/') {
-      return '/' + rawHash.replace(/^\/+/, '').replace(/\/+$/, '');
+      const clean = '/' + rawHash.replace(/^\/+/, '').replace(/\/+$/, '');
+      // Automatically upgrade legacy hash URLs (e.g. #/release/...) to clean URLs in browser bar
+      try {
+        if (window.history && window.history.replaceState) {
+          window.history.replaceState({}, '', clean);
+        }
+      } catch {}
+      return clean;
     }
   }
 
   // 2. Check query parameters (e.g. ?admin, ?p=admin, ?page=admin)
-  if (window.location.search) {
+  if (typeof window !== 'undefined' && window.location.search) {
     const searchParams = new URLSearchParams(window.location.search);
     if (searchParams.has('admin')) return '/admin';
     const p = searchParams.get('p') || searchParams.get('page') || searchParams.get('route');
@@ -63,9 +70,11 @@ function getNormalizedPath(): string {
   }
 
   // 3. Fallback to standard pathname
-  const path = window.location.pathname || '/';
-  if (path !== '/') {
-    return '/' + path.replace(/^\/+/, '').replace(/\/+$/, '');
+  if (typeof window !== 'undefined') {
+    const path = window.location.pathname || '/';
+    if (path !== '/') {
+      return '/' + path.replace(/^\/+/, '').replace(/\/+$/, '');
+    }
   }
   return '/';
 }
@@ -348,7 +357,9 @@ export default function App() {
         <ReleaseSmartLinkPage
           release={matchedRelease}
           artist={artist}
+          onNavigate={navigate}
           onBackHome={() => navigate('/')}
+          onOpenLyrics={(rel) => setActiveLyricsRelease(rel)}
         />
       );
     }

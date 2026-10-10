@@ -386,9 +386,15 @@ export const HomePage: React.FC<HomePageProps> = ({
                 className="lg:col-span-5 relative"
               >
                 <a
-                  href={displayedLatestRelease.smartUrl || `/#/release/${displayedLatestRelease.slug || displayedLatestRelease.id}`}
+                  href={displayedLatestRelease.smartUrl || `/release/${displayedLatestRelease.slug || displayedLatestRelease.id}`}
                   target={displayedLatestRelease.smartUrl ? '_blank' : undefined}
                   rel={displayedLatestRelease.smartUrl ? 'noopener noreferrer' : undefined}
+                  onClick={(e) => {
+                    if (!displayedLatestRelease.smartUrl) {
+                      e.preventDefault();
+                      onNavigate(`/release/${displayedLatestRelease.slug || displayedLatestRelease.id}`);
+                    }
+                  }}
                   className="relative aspect-square rounded-2xl overflow-hidden bg-black shadow-2xl group block cursor-pointer"
                   title={displayedLatestRelease.smartUrl ? 'Stream on Feature.fm (ffem.bio)' : 'View Release Details'}
                 >
@@ -581,12 +587,16 @@ export const HomePage: React.FC<HomePageProps> = ({
                       <motion.a
                         whileHover={{ scale: 1.04, y: -2 }}
                         whileTap={{ scale: 0.98 }}
-                        href={`/#/release/${displayedLatestRelease.slug || displayedLatestRelease.id}`}
+                        href={`/release/${displayedLatestRelease.slug || displayedLatestRelease.id}`}
+                        onClick={(e) => {
+                          e.preventDefault();
+                          onNavigate(`/release/${displayedLatestRelease.slug || displayedLatestRelease.id}`);
+                        }}
                         className="inline-flex items-center space-x-2 px-5 py-3 rounded-full bg-pink-500/10 hover:bg-pink-500/20 text-pink-300 hover:text-white border border-pink-500/30 text-xs font-bold tracking-wider uppercase transition-all duration-300 cursor-pointer"
-                        title="Open Dedicated Smart Landing Page"
+                        title="Open Dedicated Release Page"
                       >
                         <Share2 className="w-3.5 h-3.5 text-pink-400" />
-                        <span>Smart Link Page</span>
+                        <span>Release Page</span>
                       </motion.a>
                     </div>
                   </motion.div>
